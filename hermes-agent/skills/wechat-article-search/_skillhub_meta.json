@@ -1,0 +1,9 @@
+{
+  "name": "wechat-article-search",
+  "slug": "wechat-article-search",
+  "version": "0.1.0",
+  "installedAt": 1780920318231,
+  "source": "marketplace",
+  "iconSource": "wechat-article-search",
+  "preinstalledTemplate": true
+}

@@ -1,0 +1,18 @@
+{
+  "name": "Linkfox 选品 授权",
+  "source": "linkfox-product-selection",
+  "display_name": "Linkfox 选品 授权",
+  "description_zh": "输入Linkfox Agent的 API Key，用于使用Linkfox 选品的所有服务。",
+  "description_en": "输入Linkfox Agent的 API Key，用于使用Linkfox 选品的所有服务。",
+  "examples_zh": [
+    "用Linkfox 选品 授权帮我查一下最新动态",
+    "通过Linkfox 选品 授权执行一个常见任务",
+    "让Linkfox 选品 授权总结它可用的能力"
+  ],
+  "examples_en": [
+    "用Linkfox 选品 授权帮我查一下最新动态",
+    "通过Linkfox 选品 授权执行一个常见任务",
+    "让Linkfox 选品 授权总结它可用的能力"
+  ],
+  "auth": "api_key"
+}

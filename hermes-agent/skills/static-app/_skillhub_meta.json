@@ -1,0 +1,9 @@
+{
+  "name": "Static App",
+  "slug": "static-app",
+  "version": "1.0.4",
+  "installedAt": 1780920318249,
+  "source": "marketplace",
+  "iconSource": "static-app",
+  "preinstalledTemplate": true
+}

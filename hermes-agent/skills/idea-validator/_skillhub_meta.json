@@ -1,0 +1,9 @@
+{
+  "name": "创业验证",
+  "slug": "idea-validator",
+  "version": "1.0.0",
+  "installedAt": 1780920318238,
+  "source": "marketplace",
+  "iconSource": "idea-validator",
+  "preinstalledTemplate": true
+}

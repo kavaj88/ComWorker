@@ -1,0 +1,9 @@
+{
+  "name": "微信支付基础支付",
+  "slug": "wechatpay-basic-payment",
+  "version": "1.0.0",
+  "installedAt": 1780920318229,
+  "source": "marketplace",
+  "iconSource": "wechatpay-basic-payment",
+  "preinstalledTemplate": true
+}

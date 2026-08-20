@@ -1,0 +1,9 @@
+{
+  "name": "笔记搜索",
+  "slug": "qmd",
+  "version": "1.0.0",
+  "installedAt": 1780920318235,
+  "source": "marketplace",
+  "iconSource": "qmd",
+  "preinstalledTemplate": true
+}

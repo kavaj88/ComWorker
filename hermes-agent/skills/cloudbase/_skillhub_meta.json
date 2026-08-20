@@ -1,0 +1,9 @@
+{
+  "name": "腾讯云CloudBase",
+  "slug": "cloudbase",
+  "version": "2.15.4",
+  "installedAt": 1780920318231,
+  "source": "marketplace",
+  "iconSource": "cloudbase",
+  "preinstalledTemplate": true
+}

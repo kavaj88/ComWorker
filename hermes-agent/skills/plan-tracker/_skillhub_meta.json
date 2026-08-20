@@ -1,0 +1,9 @@
+{
+  "name": "目标拆解与打卡助手",
+  "slug": "plan-tracker",
+  "version": "1.0.0",
+  "installedAt": 1780920318234,
+  "source": "marketplace",
+  "iconSource": "plan-tracker",
+  "preinstalledTemplate": true
+}

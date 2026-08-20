@@ -1,0 +1,9 @@
+{
+  "name": "老板.skill",
+  "slug": "boss-skills",
+  "version": "1.1.0",
+  "installedAt": 1780920318245,
+  "source": "marketplace",
+  "iconSource": "boss-skills",
+  "preinstalledTemplate": true
+}

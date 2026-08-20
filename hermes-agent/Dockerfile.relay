@@ -1,0 +1,43 @@
+# Thin overlay image: adds the OAuth/CLI MCP relay into the existing
+# comworker-hermes-agent base image WITHOUT a full rebuild.
+#
+# Why this exists: the full hermes-agent Dockerfile requires `uv.lock` in the
+# build context (COPY pyproject.toml uv.lock ./), but uv.lock is missing from
+# this checkout, so a from-scratch build fails at that layer. The base image
+# already has every Python/Node dependency installed, so we only need to layer
+# the two relay-related files on top:
+#   - hermes_cli/mcp_oauth_relay.py  (new file: PKCE/OAuth relay + CLI install)
+#   - hermes_cli/web_server.py        (already mounts the relay router at /api/mcp)
+#
+# This image is what the platform pulls (comworker-hermes-agent:latest) when it
+# creates/recreates user runtime containers, so OAuth/CLI connectors become
+# available once containers are recreated from it.
+FROM comworker-hermes-agent:latest
+
+USER root
+
+# CLI install commands (e.g. dingtalk-workspace-cli) run a postinstall that
+# shell-outs to `unzip` to extract bundled skills. The base image is slim and
+# lacks it, which made `npm install -g` fail the postinstall (spawnSync unzip
+# ENOENT). Install it here so recreated runtime containers can install CLI
+# connectors without the apt hotfix applied to running containers.
+RUN apt-get -o Acquire::Retries=5 update && \
+    apt-get -o Acquire::Retries=5 install -y --no-install-recommends unzip && \
+    rm -rf /var/lib/apt/lists/*
+
+COPY hermes_cli/mcp_oauth_relay.py /opt/hermes/hermes_cli/mcp_oauth_relay.py
+COPY hermes_cli/web_server.py /opt/hermes/hermes_cli/web_server.py
+# api_server (aiohttp, port 18080) is what the platform gateway actually
+# reaches; the relay routes must live here, not only in web_server.py.
+COPY gateway/platforms/api_server.py /opt/hermes/gateway/platforms/api_server.py
+
+RUN chown root:root \
+        /opt/hermes/hermes_cli/mcp_oauth_relay.py \
+        /opt/hermes/hermes_cli/web_server.py \
+        /opt/hermes/gateway/platforms/api_server.py && \
+    chmod 0644 \
+        /opt/hermes/hermes_cli/mcp_oauth_relay.py \
+        /opt/hermes/hermes_cli/web_server.py \
+        /opt/hermes/gateway/platforms/api_server.py
+
+USER root

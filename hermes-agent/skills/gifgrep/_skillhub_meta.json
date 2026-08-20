@@ -1,0 +1,9 @@
+{
+  "name": "GIF搜索",
+  "slug": "gifgrep",
+  "version": "1.0.1",
+  "installedAt": 1780920318241,
+  "source": "marketplace",
+  "iconSource": "gifgrep",
+  "preinstalledTemplate": true
+}

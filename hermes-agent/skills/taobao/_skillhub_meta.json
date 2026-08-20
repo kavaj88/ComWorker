@@ -1,0 +1,9 @@
+{
+  "name": "全网比价（买手）",
+  "slug": "taobao",
+  "version": "1.0.3",
+  "installedAt": 1780920318247,
+  "source": "marketplace",
+  "iconSource": "taobao",
+  "preinstalledTemplate": true
+}

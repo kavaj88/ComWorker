@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "github-remote": {
+      "url": "https://api.githubcopilot.com/mcp/",
+      "headers": {
+        "Authorization": ""
+      },
+      "type": "streamable_http",
+      "transport": "streamable_http"
+    }
+  }
+}

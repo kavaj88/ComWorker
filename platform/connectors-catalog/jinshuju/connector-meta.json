@@ -1,0 +1,18 @@
+{
+  "name": "Jinshuju",
+  "source": "jinshuju",
+  "display_name": "金数据",
+  "description_zh": "通过 https://jinshuju.net/mcp 接入 Jinshuju 的 MCP 服务，由智能体调用其工具完成相关任务。",
+  "description_en": "通过 https://jinshuju.net/mcp 接入 Jinshuju 的 MCP 服务，由智能体调用其工具完成相关任务。",
+  "examples_zh": [
+    "用Jinshuju帮我查一下最新动态",
+    "通过Jinshuju执行一个常见任务",
+    "让Jinshuju总结它可用的能力"
+  ],
+  "examples_en": [
+    "用Jinshuju帮我查一下最新动态",
+    "通过Jinshuju执行一个常见任务",
+    "让Jinshuju总结它可用的能力"
+  ],
+  "auth": "none"
+}

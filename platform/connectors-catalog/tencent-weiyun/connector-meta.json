@@ -1,0 +1,18 @@
+{
+  "name": "Tencent Weiyun",
+  "source": "tencent-weiyun",
+  "display_name": "微云",
+  "description_zh": "通过 https://www.weiyun.com/api/v3/mcpserver 接入 Tencent Weiyun 的 MCP 服务，由智能体调用其工具完成相关任务。",
+  "description_en": "通过 https://www.weiyun.com/api/v3/mcpserver 接入 Tencent Weiyun 的 MCP 服务，由智能体调用其工具完成相关任务。",
+  "examples_zh": [
+    "用Tencent Weiyun帮我查一下最新动态",
+    "通过Tencent Weiyun执行一个常见任务",
+    "让Tencent Weiyun总结它可用的能力"
+  ],
+  "examples_en": [
+    "用Tencent Weiyun帮我查一下最新动态",
+    "通过Tencent Weiyun执行一个常见任务",
+    "让Tencent Weiyun总结它可用的能力"
+  ],
+  "auth": "none"
+}

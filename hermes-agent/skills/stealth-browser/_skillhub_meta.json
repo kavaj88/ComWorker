@@ -1,0 +1,9 @@
+{
+  "name": "Stealth Browser",
+  "slug": "stealth-browser",
+  "version": "1.0.0",
+  "installedAt": 1780920318241,
+  "source": "marketplace",
+  "iconSource": "stealth-browser",
+  "preinstalledTemplate": true
+}

@@ -1,0 +1,9 @@
+{
+  "name": "book2skill",
+  "slug": "cangjie-skill",
+  "version": "1.0.0",
+  "installedAt": 1780920318235,
+  "source": "marketplace",
+  "iconSource": "cangjie-skill",
+  "preinstalledTemplate": true
+}

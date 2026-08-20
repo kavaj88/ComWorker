@@ -1,0 +1,20 @@
+{
+  "name": "Lovrabet CLI",
+  "source": "lovrabet-cli",
+  "display_name": "Lovrabet CLI",
+  "description_zh": "通过 Lovrabet Runtime CLI 访问已发布应用的数据集、运行态 API、SQL、BFF、文件、OCR、Artifact 和知识库能力。",
+  "description_en": "通过 Lovrabet Runtime CLI 访问已发布应用的数据集、运行态 API、SQL、BFF、文件、OCR、Artifact 和知识库能力。",
+  "examples_zh": [
+    "查看我可以访问的 Lovrabet 应用列表",
+    "帮我查找订单相关的数据集，并展示字段结构",
+    "查询 CRM 客户数据中最近创建的 20 条记录",
+    "执行已发布的运行态 SQL 查询并返回摘要"
+  ],
+  "examples_en": [
+    "查看我可以访问的 Lovrabet 应用列表",
+    "帮我查找订单相关的数据集，并展示字段结构",
+    "查询 CRM 客户数据中最近创建的 20 条记录",
+    "执行已发布的运行态 SQL 查询并返回摘要"
+  ],
+  "auth": "cli"
+}

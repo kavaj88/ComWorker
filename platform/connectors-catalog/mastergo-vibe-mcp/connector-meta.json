@@ -1,0 +1,22 @@
+{
+  "name": "mastergo",
+  "source": "mastergo-vibe-mcp",
+  "display_name": "MasterGo 莫高设计",
+  "description_zh": "连接 MasterGo 画布，让 AI 进行设计、修改、同步和获取 D2C 代码。",
+  "description_en": "连接 MasterGo 画布，让 AI 进行设计、修改、同步和获取 D2C 代码。",
+  "examples_zh": [
+    "使用 MasterGo MCP，为我设计一个任务管理系统界面",
+    "用当前文件已订阅的团队组件库生成 CRM 客户管理页面",
+    "把当前选中按钮背景改成黑色，文字改成白色",
+    "为我生成一套按钮组件，要求有大中小尺寸和不同的状态",
+    "获取我当前选中图层的前端代码"
+  ],
+  "examples_en": [
+    "使用 MasterGo MCP，为我设计一个任务管理系统界面",
+    "用当前文件已订阅的团队组件库生成 CRM 客户管理页面",
+    "把当前选中按钮背景改成黑色，文字改成白色",
+    "为我生成一套按钮组件，要求有大中小尺寸和不同的状态",
+    "获取我当前选中图层的前端代码"
+  ],
+  "auth": "none"
+}

@@ -1,0 +1,9 @@
+{
+  "name": "新闻摘要",
+  "slug": "news-summary",
+  "version": "1.0.1",
+  "installedAt": 1780920318237,
+  "source": "marketplace",
+  "iconSource": "news-summary",
+  "preinstalledTemplate": true
+}

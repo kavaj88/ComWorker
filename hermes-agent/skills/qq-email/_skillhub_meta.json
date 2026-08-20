@@ -1,0 +1,9 @@
+{
+  "name": "QQ邮箱",
+  "slug": "qq-email",
+  "version": "1.0.0",
+  "installedAt": 1780920318246,
+  "source": "marketplace",
+  "iconSource": "qq-email",
+  "preinstalledTemplate": true
+}

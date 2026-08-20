@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "iwiki-woa": {
+      "url": "https://prod.mcp.it.woa.com/app_iwiki_mcp/mcp3",
+      "type": "streamable_http",
+      "transport": "streamable_http"
+    }
+  }
+}

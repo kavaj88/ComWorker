@@ -1,0 +1,17 @@
+{
+  "mcpServers": {
+    "qqmail": {
+      "type": "streamable_http",
+      "url": "https://api.mail.qq.com/mcp",
+      "timeout": 600,
+      "transport": "streamable_http",
+      "oauth": {
+        "authorization_endpoint": "https://graph.qq.com/oauth2.0/authorize",
+        "token_endpoint": "https://graph.qq.com/oauth2.0/token",
+        "scope": "get_user_info email",
+        "client_id": "${QQMAIL_CLIENT_ID}",
+        "client_secret": "${QQMAIL_CLIENT_SECRET}"
+      }
+    }
+  }
+}

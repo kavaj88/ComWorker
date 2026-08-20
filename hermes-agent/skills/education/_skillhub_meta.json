@@ -1,0 +1,9 @@
+{
+  "name": "Education",
+  "slug": "education",
+  "version": "3.4.1",
+  "installedAt": 1780920318236,
+  "source": "marketplace",
+  "iconSource": "education",
+  "preinstalledTemplate": true
+}

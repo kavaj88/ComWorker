@@ -1,0 +1,9 @@
+{
+  "name": "腾讯校园招聘",
+  "slug": "tencent-campus-recruit",
+  "version": "1.0.2",
+  "installedAt": 1780920318228,
+  "source": "marketplace",
+  "iconSource": "tencent-campus-recruit",
+  "preinstalledTemplate": true
+}

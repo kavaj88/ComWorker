@@ -1,0 +1,9 @@
+{
+  "name": "Cloudflare Worker Builder",
+  "slug": "cloudflare-worker-builder",
+  "version": "1.0.0",
+  "installedAt": 1780920318249,
+  "source": "marketplace",
+  "iconSource": "cloudflare-worker-builder",
+  "preinstalledTemplate": true
+}

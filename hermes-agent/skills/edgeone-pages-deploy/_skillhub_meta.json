@@ -1,0 +1,9 @@
+{
+  "name": "EdgeOne Pages Deploy",
+  "slug": "edgeone-pages-deploy",
+  "version": "1.0.5",
+  "installedAt": 1780920318249,
+  "source": "marketplace",
+  "iconSource": "edgeone-pages-deploy",
+  "preinstalledTemplate": true
+}

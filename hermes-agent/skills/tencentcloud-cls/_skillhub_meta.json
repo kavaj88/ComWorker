@@ -1,0 +1,9 @@
+{
+  "name": "腾讯云日志服务CLS",
+  "slug": "tencentcloud-cls",
+  "version": "1.1.0",
+  "installedAt": 1780920318230,
+  "source": "marketplace",
+  "iconSource": "tencentcloud-cls",
+  "preinstalledTemplate": true
+}

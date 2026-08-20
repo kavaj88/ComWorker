@@ -1,0 +1,9 @@
+{
+  "name": "Apple备忘录",
+  "slug": "apple-notes",
+  "version": "1.0.0",
+  "installedAt": 1780920318235,
+  "source": "marketplace",
+  "iconSource": "apple-notes",
+  "preinstalledTemplate": true
+}

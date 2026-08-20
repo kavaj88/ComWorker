@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "jinshuju": {
+      "url": "https://jinshuju.net/mcp",
+      "type": "streamable_http",
+      "timeout": 30000,
+      "transport": "streamable_http"
+    }
+  }
+}

@@ -1,0 +1,68 @@
+# Thin patch image: reuse the prebuilt base (deps + frontend already built)
+# and only refresh the Python runtime source on top. This avoids the heavy
+# apt/uv/npm build steps that OOM on machines with <16G Docker memory.
+FROM comworker-hermes-agent:original-backup
+
+USER root
+
+# Refresh source exactly the way the real Dockerfile.bridge does for source
+# (Dockerfile.bridge lines 53-55), minus the apt/uv/npm/frontend-build steps.
+#
+# IMPORTANT: each source dir MUST be copied to a destination WITH the same
+# directory name (e.g. gateway -> /opt/hermes/gateway/). A trailing-slash
+# destination like "/opt/hermes/" would FLATTEN the dir's contents into
+# /opt/hermes/ and break the package layout.
+COPY --chown=hermes:hermes pyproject.toml /opt/hermes/pyproject.toml
+COPY --chown=hermes:hermes acp_adapter /opt/hermes/acp_adapter/
+COPY --chown=hermes:hermes agent /opt/hermes/agent/
+COPY --chown=hermes:hermes cron /opt/hermes/cron/
+COPY --chown=hermes:hermes gateway /opt/hermes/gateway/
+COPY --chown=hermes:hermes hermes_cli /opt/hermes/hermes_cli/
+COPY --chown=hermes:hermes plugins /opt/hermes/plugins/
+COPY --chown=hermes:hermes tools /opt/hermes/tools/
+COPY --chown=hermes:hermes batch_runner.py /opt/hermes/batch_runner.py
+COPY --chown=hermes:hermes cli.py /opt/hermes/cli.py
+COPY --chown=hermes:hermes hermes_constants.py /opt/hermes/hermes_constants.py
+COPY --chown=hermes:hermes hermes_logging.py /opt/hermes/hermes_logging.py
+COPY --chown=hermes:hermes hermes_state.py /opt/hermes/hermes_state.py
+COPY --chown=hermes:hermes hermes_time.py /opt/hermes/hermes_time.py
+COPY --chown=hermes:hermes model_tools.py /opt/hermes/model_tools.py
+COPY --chown=hermes:hermes run_agent.py /opt/hermes/run_agent.py
+COPY --chown=hermes:hermes setup.py /opt/hermes/setup.py
+COPY --chown=hermes:hermes toolset_distributions.py /opt/hermes/toolset_distributions.py
+COPY --chown=hermes:hermes toolsets.py /opt/hermes/toolsets.py
+COPY --chown=hermes:hermes trajectory_compressor.py /opt/hermes/trajectory_compressor.py
+COPY --chown=hermes:hermes utils.py /opt/hermes/utils.py
+
+# Ensure the freshly copied source is world-readable (mirrors Dockerfile.bridge
+# final chmod). .venv / node_modules / built frontend dist are untouched and
+# keep their existing permissions from the base image.
+RUN chmod -R a+rX /opt/hermes
+
+# Compatibility fix (Docker Desktop / macOS named volumes):
+# On this Docker setup chown(2)/chmod(2) on the data volume fail with EPERM
+# even as root, so a gosu-dropped 'hermes' user cannot chmod its root-owned 0600
+# .env/config.yaml and the entrypoint aborts via `set -e` -> crash loop
+# (Restarting). Disable the privilege drop so the container runs as root, which
+# both chmods successfully and can read the root-owned files -- matching the
+# previously-working (12-day-uptime) behavior.
+RUN sed -i 's|^    exec gosu hermes "$0" "$@"|    # gosu privilege drop disabled: this Docker setup forbids chown/chmod on the data volume, so a dropped "hermes" user cannot read root-owned files; run as root instead|' /opt/hermes/docker/entrypoint.sh \
+ && sed -i 's|^    echo "Dropping root privileges"|    echo "Running as root (gosu drop disabled: volume forbids chown/chmod)"|' /opt/hermes/docker/entrypoint.sh \
+ && grep -n 'gosu privilege drop disabled' /opt/hermes/docker/entrypoint.sh
+
+# On this Docker setup chmod(2) on the data volume fails with EPERM even as root,
+# so every `chmod` in the entrypoint would abort the script via `set -e` and the
+# container would crash-loop. Make all chmod calls best-effort (the file keeps its
+# existing perms; the runtime runs as root so it can still read the files).
+RUN sed -i 's@^\([[:space:]]*chmod [0-9]* .*\)$@\1 2>/dev/null || true@' /opt/hermes/docker/entrypoint.sh \
+ && grep -n 'chmod' /opt/hermes/docker/entrypoint.sh
+
+# Run as root: on this Docker setup the data volume forbids chown/chmod (EPERM
+# even as root), so the gateway's injected root-owned 0600 .env/config.yaml
+# cannot be chmod'd or read by a gosu-dropped "hermes" user. Running as root
+# lets the runtime read those files. The entrypoint's gosu drop is disabled
+# above so the script falls through to the runtime as root.
+USER root
+# The Hermes gateway refuses to start as root unless this is set. It is required
+# here because the data volume cannot be chowned to a non-root user.
+ENV HERMES_ALLOW_ROOT_GATEWAY=1

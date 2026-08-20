@@ -1,0 +1,9 @@
+{
+  "name": "Himalaya邮件",
+  "slug": "himalaya",
+  "version": "1.0.0",
+  "installedAt": 1780920318237,
+  "source": "marketplace",
+  "iconSource": "himalaya",
+  "preinstalledTemplate": true
+}

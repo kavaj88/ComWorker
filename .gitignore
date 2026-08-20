@@ -1,0 +1,47 @@
+# ── OS / editor ──────────────────────────────────────────────────────
+.DS_Store
+*.swp
+.idea
+
+# ── Python ──────────────────────────────────────────────────────────
+__pycache__/
+*.pyc
+.venv/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+*.lock
+
+# ── Node / frontend build ───────────────────────────────────────────
+node_modules/
+dist/
+.next/
+build/
+npm-debug.log
+yarn-error.log
+
+# ── Environment & secrets (never commit) ────────────────────────────
+.env
+.env*
+.env_dev
+.env_prod
+secrets/
+!secrets/.gitkeep
+
+# ── Generated docker secrets / local runtime data ───────────────────
+.hermes/
+.codex/
+.qoder/
+.claude/
+.workbuddy/
+.scratch/
+cache/
+
+# ── Local agent / scratch docs (use `git add -f` to force-share) ─────
+docs/
+
+# ── Deploy copy artifacts (kept out of source control) ──────────────
+hermes-agent/deploy_copy/
+platform/deploy_copy/*
+!platform/deploy_copy/.gitkeep
+tmp_skillstore_tests/

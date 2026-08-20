@@ -1,0 +1,9 @@
+{
+  "name": "宏观数据监控",
+  "slug": "macro-monitor",
+  "version": "1.0.2",
+  "installedAt": 1780920318238,
+  "source": "marketplace",
+  "iconSource": "macro-monitor",
+  "preinstalledTemplate": true
+}

@@ -1,0 +1,9 @@
+{
+  "name": "PPT 演示文稿",
+  "slug": "pptx-generator",
+  "version": "1.0.2",
+  "installedAt": 1780920318235,
+  "source": "marketplace",
+  "iconSource": "pptx-generator",
+  "preinstalledTemplate": true
+}

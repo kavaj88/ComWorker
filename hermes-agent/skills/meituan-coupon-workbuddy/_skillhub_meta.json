@@ -1,0 +1,9 @@
+{
+  "name": "美团红包助手",
+  "slug": "meituan-coupon-workbuddy",
+  "version": "1.0.1",
+  "installedAt": 1780920318230,
+  "source": "marketplace",
+  "iconSource": "meituan-coupon-workbuddy",
+  "preinstalledTemplate": true
+}

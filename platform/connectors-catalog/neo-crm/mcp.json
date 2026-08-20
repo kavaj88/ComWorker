@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "neo-crm": {
+      "type": "streamable_http",
+      "url": "https://mcp.xiaoshouyi.com/mcp",
+      "transport": "streamable_http"
+    }
+  }
+}

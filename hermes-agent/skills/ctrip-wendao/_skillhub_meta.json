@@ -1,0 +1,9 @@
+{
+  "name": "携程问道",
+  "slug": "ctrip-wendao",
+  "version": "1.0.0",
+  "installedAt": 1780920318230,
+  "source": "marketplace",
+  "iconSource": "ctrip-wendao",
+  "preinstalledTemplate": true
+}

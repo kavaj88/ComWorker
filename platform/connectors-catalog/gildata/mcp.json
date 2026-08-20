@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "gildata": {
+      "type": "streamable_http",
+      "url": "https://api.gildata.com/mcp-servers/aidata-assistant-srv-tool?token=${GILDATA_TOKEN}",
+      "timeout": 180000,
+      "transport": "streamable_http"
+    }
+  }
+}

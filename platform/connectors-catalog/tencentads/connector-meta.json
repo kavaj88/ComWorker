@@ -1,0 +1,18 @@
+{
+  "name": "Tencentads",
+  "source": "tencentads",
+  "display_name": "腾讯营销投放",
+  "description_zh": "Tencentads 原生 CLI 连接器。安装后需在容器内完成登录授权，由中继代理与平台转发回调。",
+  "description_en": "Tencentads 原生 CLI 连接器。安装后需在容器内完成登录授权，由中继代理与平台转发回调。",
+  "examples_zh": [
+    "用Tencentads帮我查一下最新动态",
+    "通过Tencentads执行一个常见任务",
+    "让Tencentads总结它可用的能力"
+  ],
+  "examples_en": [
+    "用Tencentads帮我查一下最新动态",
+    "通过Tencentads执行一个常见任务",
+    "让Tencentads总结它可用的能力"
+  ],
+  "auth": "cli"
+}

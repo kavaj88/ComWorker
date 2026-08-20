@@ -1,0 +1,9 @@
+{
+  "name": "GitHub Pages Auto Deploy",
+  "slug": "github-pages-auto-deploy",
+  "version": "1.0.0",
+  "installedAt": 1780920318249,
+  "source": "marketplace",
+  "iconSource": "github-pages-auto-deploy",
+  "preinstalledTemplate": true
+}

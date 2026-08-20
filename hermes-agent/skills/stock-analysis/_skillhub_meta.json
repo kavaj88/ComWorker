@@ -1,0 +1,9 @@
+{
+  "name": "Stock Analysis",
+  "slug": "stock-analysis",
+  "version": "6.2.0",
+  "installedAt": 1780920318246,
+  "source": "marketplace",
+  "iconSource": "stock-analysis",
+  "preinstalledTemplate": true
+}

@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "fyopen-lawsearch": {
+      "type": "streamable_http",
+      "url": "https://api.cjbdi.com:8443/354347/mcp_law_service",
+      "transport": "streamable_http"
+    }
+  }
+}

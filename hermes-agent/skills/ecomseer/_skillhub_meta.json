@@ -1,0 +1,9 @@
+{
+  "name": "EcomSeer TikTok 电商数据",
+  "slug": "ecomseer",
+  "version": "1.0.1",
+  "installedAt": 1780920318247,
+  "source": "marketplace",
+  "iconSource": "ecomseer",
+  "preinstalledTemplate": true
+}

@@ -1,0 +1,9 @@
+{
+  "name": "腾讯问卷",
+  "slug": "tencent-survey",
+  "version": "1.1.1",
+  "installedAt": 1780920318230,
+  "source": "marketplace",
+  "iconSource": "tencent-survey",
+  "preinstalledTemplate": true
+}

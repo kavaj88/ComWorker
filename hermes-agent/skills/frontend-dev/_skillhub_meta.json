@@ -1,0 +1,9 @@
+{
+  "name": "前端开发",
+  "slug": "frontend-dev",
+  "version": "0.1.1",
+  "installedAt": 1780920318239,
+  "source": "marketplace",
+  "iconSource": "frontend-dev",
+  "preinstalledTemplate": true
+}

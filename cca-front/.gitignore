@@ -1,0 +1,10 @@
+node_modules
+dist
+.git
+*.local
+.vite
+/Chat.tsx
+Chat.tsx.backup
+/apply_thinking_*.py
+/modify_*.py
+PROJECT_INDEX.md

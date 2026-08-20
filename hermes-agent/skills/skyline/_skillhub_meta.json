@@ -1,0 +1,9 @@
+{
+  "name": "skyline渲染引擎",
+  "slug": "skyline",
+  "version": "1.0.0",
+  "installedAt": 1780920318231,
+  "source": "marketplace",
+  "iconSource": "skyline",
+  "preinstalledTemplate": true
+}

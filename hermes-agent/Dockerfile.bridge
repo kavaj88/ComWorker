@@ -1,0 +1,103 @@
+ARG BASE_TAG=latest
+FROM hermes-base:${BASE_TAG}
+
+ENV PYTHONUNBUFFERED=1
+ENV PLAYWRIGHT_BROWSERS_PATH=/opt/hermes/.playwright
+ENV PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD=0
+ENV AGENT_BROWSER_EXECUTABLE_PATH=/usr/bin/chromium
+
+ARG APT_DEBIAN_MIRROR=""
+ARG APT_SECURITY_MIRROR=""
+ARG PIP_INDEX_URL=https://pypi.org/simple
+ARG NPM_REGISTRY=https://registry.npmmirror.com
+ARG PLAYWRIGHT_DOWNLOAD_HOST=https://npmmirror.com/mirrors/playwright
+ARG HERMES_INSTALL_BROWSER=false
+ARG HERMES_INSTALL_WHATSAPP_BRIDGE=false
+ENV PLAYWRIGHT_DOWNLOAD_HOST=${PLAYWRIGHT_DOWNLOAD_HOST}
+
+# Install document-processing and browser-UI system dependencies.
+# The apt mirror is controlled by APT_DEBIAN_MIRROR / APT_SECURITY_MIRROR args
+# (defaults to empty for stock Debian mirrors; set to USTC mirrors for CN builds).
+RUN if [ -n "${APT_DEBIAN_MIRROR}" ]; then \
+        sed -i "s|http://deb.debian.org/debian|${APT_DEBIAN_MIRROR}|g" /etc/apt/sources.list.d/debian.sources; \
+    fi && \
+    if [ -n "${APT_SECURITY_MIRROR}" ]; then \
+        sed -i "s|http://security.debian.org|${APT_SECURITY_MIRROR}|g" /etc/apt/sources.list.d/debian.sources; \
+    fi && \
+    apt-get -o Acquire::Retries=5 update && \
+    apt-get -o Acquire::Retries=5 install -y --no-install-recommends \
+        libpango-1.0-0 libpangocairo-1.0-0 libcairo2 libgdk-pixbuf-2.0-0 \
+        libffi-dev shared-mime-info chromium python3-pip gosu \
+        poppler-utils tesseract-ocr tesseract-ocr-chi-sim tesseract-ocr-eng \
+        libreoffice-core libreoffice-writer libreoffice-calc \
+        libmagic1 file antiword catdoc && \
+    rm -rf /var/lib/apt/lists/* && \
+    pip3 install --break-system-packages --no-cache-dir -i ${PIP_INDEX_URL} \
+        requests pymupdf pdfplumber python-docx openpyxl python-pptx pandas xlrd odfpy python-magic chardet
+
+WORKDIR /opt/hermes
+RUN npm config set fetch-retries 5 && \
+    npm config set fetch-retry-mintimeout 20000 && \
+    npm config set fetch-retry-maxtimeout 120000 && \
+    npm config set registry ${NPM_REGISTRY}
+
+# WhatsApp bridge (optional)
+COPY --chown=hermes:hermes scripts/whatsapp-bridge/package.json scripts/whatsapp-bridge/package-lock.json ./scripts/whatsapp-bridge/
+RUN if [ "$HERMES_INSTALL_WHATSAPP_BRIDGE" = "true" ]; then \
+        cd /opt/hermes/scripts/whatsapp-bridge && npm install --prefer-offline --no-audit --no-fund; \
+    else \
+        echo "Skipping WhatsApp bridge npm install; rebuild with HERMES_INSTALL_WHATSAPP_BRIDGE=true to include WhatsApp bridge dependencies."; \
+    fi
+
+# Copy source code (updates on top of base image)
+COPY --chown=hermes:hermes pyproject.toml ./
+COPY --chown=hermes:hermes acp_adapter agent cron gateway hermes_cli plugins tools ./
+COPY --chown=hermes:hermes batch_runner.py cli.py hermes_constants.py hermes_logging.py hermes_state.py hermes_time.py model_tools.py run_agent.py setup.py toolset_distributions.py toolsets.py trajectory_compressor.py utils.py ./
+
+# The base image (hermes-base) makes /opt/hermes immutable for the runtime
+# user: `chown -R root:root` + `chmod -R a-w`. Restore hermes ownership AND
+# owner-write so the venv install + frontend build below can write here.
+RUN chown -R hermes:hermes /opt/hermes && \
+    chmod -R u+w /opt/hermes
+USER hermes
+RUN if [ ! -d /opt/hermes/.venv ]; then uv venv --seed /opt/hermes/.venv; fi && \
+    uv pip install --no-cache-dir -i ${PIP_INDEX_URL} setuptools wheel weasyprint \
+        pymupdf pdfplumber python-docx openpyxl python-pptx pandas xlrd odfpy python-magic chardet && \
+    uv pip install --no-build-isolation --no-cache-dir -i ${PIP_INDEX_URL} --extra-index-url https://pypi.org/simple/ -e ".[all]"
+
+COPY --chown=hermes:hermes . /opt/hermes
+
+# Build frontend assets (web dashboard + terminal UI)
+# NOTE: ComWorker does NOT use the hermes self-contained web UI — it serves its
+# own cca-front / manage_front. The `web` build currently fails because
+# @nous-research/ui@0.18.2 does not export `hooks/use-below-breakpoint`, so it
+# is skipped by default to keep the runtime image buildable. Re-enable the two
+# lines below once that dependency version is fixed.
+# RUN cd web && npm run build && \
+#     cd ../ui-tui && npm run build
+
+# Permissions: make .venv writable by hermes user
+# (needed for lazy_deps.py to install packages at runtime).
+USER root
+RUN chmod -R a+rX /opt/hermes && \
+    chown -R hermes:hermes /opt/hermes/.venv && \
+    chmod +x /opt/hermes/docker/entrypoint.sh
+
+ENV HERMES_WEB_DIST=/opt/hermes/hermes_cli/web_dist
+ENV HERMES_HOME=/opt/data
+ENV PATH="/opt/hermes/.venv/bin:/opt/data/.local/bin:${PATH}"
+# login shell (bash -l) sources /etc/profile which hard-resets PATH;
+# re-add hermes venv for interactive/frontend terminals.
+RUN echo 'export PATH="/opt/hermes/.venv/bin:$PATH"' > /etc/profile.d/hermes.sh
+VOLUME [ "/opt/data" ]
+ENTRYPOINT [ "/opt/hermes/docker/entrypoint.sh" ]
+
+ENV API_SERVER_ENABLED=true
+ENV API_SERVER_HOST=0.0.0.0
+ENV API_SERVER_PORT=18080
+ENV API_SERVER_KEY=dev-hermes-bridge-key
+ENV GATEWAY_ALLOW_ALL_USERS=true
+
+EXPOSE 18080
+
+CMD ["gateway", "run", "-v"]

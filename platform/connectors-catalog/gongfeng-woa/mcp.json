@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "gongfeng-woa": {
+      "url": "https://mcpgw.knot.woa.com/gongfeng",
+      "type": "streamable_http",
+      "transport": "streamable_http"
+    }
+  }
+}

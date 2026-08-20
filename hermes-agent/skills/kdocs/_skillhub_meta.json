@@ -1,0 +1,9 @@
+{
+  "name": "金山文档| WPS云文档",
+  "slug": "kdocs",
+  "version": "1.3.3",
+  "installedAt": 1780920318232,
+  "source": "marketplace",
+  "iconSource": "kdocs",
+  "preinstalledTemplate": true
+}

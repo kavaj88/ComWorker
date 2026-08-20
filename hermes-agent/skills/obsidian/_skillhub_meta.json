@@ -1,0 +1,9 @@
+{
+  "name": "obsidian",
+  "slug": "obsidian",
+  "version": "1.0.0",
+  "installedAt": 1780920318233,
+  "source": "marketplace",
+  "iconSource": "obsidian",
+  "preinstalledTemplate": true
+}

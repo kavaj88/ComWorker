@@ -1,0 +1,9 @@
+{
+  "name": "trello",
+  "slug": "trello",
+  "version": "1.0.0",
+  "installedAt": 1780920318234,
+  "source": "marketplace",
+  "iconSource": "trello",
+  "preinstalledTemplate": true
+}

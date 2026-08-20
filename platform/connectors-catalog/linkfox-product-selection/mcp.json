@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "linkfox-product-selection": {
+      "type": "streamable_http",
+      "url": "https://mcp-tool-gateway.linkfox.com/mcp/any-tool",
+      "headers": {
+        "Authorization": "${LINKFOX_AGENT_API_KEY}"
+      },
+      "transport": "streamable_http"
+    }
+  }
+}

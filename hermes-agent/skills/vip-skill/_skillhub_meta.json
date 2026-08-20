@@ -1,0 +1,9 @@
+{
+  "name": "唯品会技能集",
+  "slug": "vip-skill",
+  "version": "1.0.6",
+  "installedAt": 1780920318231,
+  "source": "marketplace",
+  "iconSource": "vip-skill",
+  "preinstalledTemplate": true
+}

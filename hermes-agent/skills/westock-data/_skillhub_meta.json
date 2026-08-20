@@ -1,0 +1,9 @@
+{
+  "name": "WeStock Data",
+  "slug": "westock-data",
+  "version": "1.0.1",
+  "installedAt": 1780920318248,
+  "source": "marketplace",
+  "iconSource": "westock-data",
+  "preinstalledTemplate": true
+}

@@ -1,0 +1,20 @@
+{
+  "name": "Tec-Do 2.0 Ad & Growth Intelligence",
+  "source": "tec-do",
+  "display_name": "Tec-Do 2.0 广告与增长情报",
+  "description_zh": "面向出海广告投放和增长团队的 AI 能力集合。",
+  "description_en": "面向出海广告投放和增长团队的 AI 能力集合。",
+  "examples_zh": [
+    "查询美国 TikTok 电商品类的 CPM、CTR 和 CPC 基准",
+    "搜索美国宠物用品品类近 30 天的 TikTok 热门广告素材",
+    "为 example.com 生成结构化竞品分析报告",
+    "分析论坛和评论站点中关于智能喂食器的客户之声与情感"
+  ],
+  "examples_en": [
+    "查询美国 TikTok 电商品类的 CPM、CTR 和 CPC 基准",
+    "搜索美国宠物用品品类近 30 天的 TikTok 热门广告素材",
+    "为 example.com 生成结构化竞品分析报告",
+    "分析论坛和评论站点中关于智能喂食器的客户之声与情感"
+  ],
+  "auth": "none"
+}

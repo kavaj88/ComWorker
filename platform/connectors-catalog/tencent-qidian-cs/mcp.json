@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "tencent-qidian-cs": {
+      "url": "https://sse.qidian.qq.com/qidian-cs/mcp",
+      "disabled": false,
+      "type": "streamable_http",
+      "transport": "streamable_http"
+    }
+  }
+}

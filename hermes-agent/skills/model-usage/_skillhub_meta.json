@@ -1,0 +1,9 @@
+{
+  "name": "模型用量统计",
+  "slug": "model-usage",
+  "version": "1.0.0",
+  "installedAt": 1780920318243,
+  "source": "marketplace",
+  "iconSource": "model-usage",
+  "preinstalledTemplate": true
+}

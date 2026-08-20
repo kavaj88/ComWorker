@@ -1,0 +1,2225 @@
+{
+  "version": 1,
+  "categories": [
+    "OPC·一人公司",
+    "生活服务",
+    "开发工具",
+    "网站部署",
+    "教育学习",
+    "投资理财",
+    "内容创作",
+    "信息资讯",
+    "效率工具",
+    "办公协同",
+    "商业运营"
+  ],
+  "skills": {
+    "tencent-docs": {
+      "category": "办公协同",
+      "tags": [
+        "办公协同"
+      ],
+      "title": "腾讯文档",
+      "description": "腾讯文档在线云文档平台，创建、编辑、管理多种类型文档"
+    },
+    "tencent-meeting-skill": {
+      "category": "办公协同",
+      "tags": [
+        "办公协同"
+      ],
+      "title": "腾讯会议",
+      "description": "腾讯会议管理（预约、录制、转写、纪要）"
+    },
+    "wecom-unified": {
+      "category": "办公协同",
+      "tags": [
+        "办公协同"
+      ],
+      "title": "企业微信套件",
+      "description": "企业微信 CLI 套件，覆盖文档/消息/日程/会议/待办/通讯录等业务功能。10人以上规模的企业，支持新建和读取文档/智能表格/智能文档；10人及以下个人及小团队，支持文档读写、收发单聊/群聊消息、日程/会议/待办管理、获取通讯录等能力。"
+    },
+    "tencent-yunzhi": {
+      "category": "办公协同",
+      "tags": [
+        "办公协同",
+        "信息资讯"
+      ],
+      "title": "腾讯云知（乐享）",
+      "description": "腾讯云知平台一站式操作（检索、新建、上传、编辑、下载）"
+    },
+    "ima-skills": {
+      "category": "内容创作",
+      "tags": [
+        "内容创作"
+      ],
+      "title": "腾讯ima",
+      "description": "ima笔记与知识库管理（读取、写入、检索）"
+    },
+    "neodata-financial-search": {
+      "category": "投资理财",
+      "tags": [
+        "投资理财"
+      ],
+      "title": "NeoData金融搜索服务",
+      "description": "自然语言查询股票、基金、宏观、外汇、大宗商品等金融数据"
+    },
+    "cnb-skill": {
+      "category": "开发工具",
+      "tags": [
+        "开发工具"
+      ],
+      "title": "cnb.cool",
+      "description": "CNB 平台全功能操作（仓库、Issue、PR、流水线、制品库）"
+    },
+    "aihot": {
+      "category": "信息资讯",
+      "tags": [
+        "信息资讯"
+      ],
+      "title": "AIHOT",
+      "description": "一句话查到 aihot.virxact.com 上每天精选的 AI 模型 / 产品 / 行业 / 论文动态，自动整理成中文简报，免配置 API Key。"
+    },
+    "awesome-design-md": {
+      "category": "OPC·一人公司",
+      "tags": [
+        "OPC·一人公司",
+        "内容创作"
+      ],
+      "title": "品牌设计风格专家",
+      "description": "54 个知名网站设计系统模板，一键复用品牌级 UI 风格"
+    },
+    "fbs-bookwriter": {
+      "category": "内容创作",
+      "tags": [
+        "内容创作"
+      ],
+      "description": "福帮手出品 | 高质量长文档手稿工具链：书籍、手册、白皮书、行业指南、长篇报道、深度专题；支持联网查证（宿主允许时启用，离线自动降级）、S/P/C/B 分层审校、中文排版与 MD/HTML 交付。触发词：福帮手、福帮手写书skill、福帮手写书、写书、出书、写长篇、写手册、写白皮书、写行业指南、协作写书、定大纲、写章节、封面、插图、排版构建、导出、去AI味、质量自检、图文书、写报道、写深度稿、写特稿、写专题、写调查报道、写长文、拆书改写、海外本地化改写、爆款结构改写、激活原料、原料盘点、整理素材",
+      "title": "fbs-bookwriter"
+    },
+    "tapd-openapi": {
+      "category": "开发工具",
+      "tags": [
+        "开发工具"
+      ],
+      "title": "TAPD",
+      "description": "TAPD 项目管理平台操作（需求、缺陷、任务、迭代、Wiki、评论、工时、附件）"
+    },
+    "lexiang-knowledge-base": {
+      "category": "办公协同",
+      "tags": [
+        "办公协同"
+      ],
+      "title": "乐享知识库",
+      "description": "支持多源导入、多模态问答、PPT生成的原生Agentic知识库，深度解析图文与音视频，为Agent注入高质量、安全可控的知识"
+    },
+    "tencent-news": {
+      "category": "信息资讯",
+      "tags": [
+        "信息资讯"
+      ],
+      "title": "腾讯新闻",
+      "description": "7×24 新闻搜索工具，聚焦国内外热点，支持热榜、早晚报、实时资讯及领域新闻查询。"
+    },
+    "the-entrepreneurship-handbook": {
+      "category": "OPC·一人公司",
+      "tags": [
+        "OPC·一人公司",
+        "教育学习"
+      ],
+      "title": "创业可以学",
+      "description": "服务创业者和管理者，解答创业/商业/管理问题，引发深度思考"
+    },
+    "teachany": {
+      "category": "教育学习",
+      "tags": [
+        "教育学习"
+      ],
+      "title": "TeachAny",
+      "description": "K12 互动课件开发技能：用于制作或优化学科课件、教学动画、AI 学伴、TTS、知识图谱、PBL 学习路径与 TeachAny 发布。"
+    },
+    "tencent-campus-recruit": {
+      "category": "教育学习",
+      "tags": [
+        "教育学习"
+      ],
+      "title": "腾讯校园招聘",
+      "description": "腾讯校招流程引导、岗位推荐、简历优化与面试辅导助手"
+    },
+    "weread-skills": {
+      "category": "教育学习",
+      "tags": [
+        "教育学习"
+      ],
+      "title": "微信读书助手",
+      "description": "搜索微信读书书籍、管理书架、查看笔记划线、浏览书评、阅读统计与好书推荐"
+    },
+    "tencentcloud-cos": {
+      "category": "开发工具",
+      "tags": [
+        "开发工具"
+      ],
+      "title": "腾讯云COS",
+      "description": "腾讯云 COS 对象存储、数据万象数据智能处理、MetaInsight多模态检索、知识库搭建"
+    },
+    "cos-vectors": {
+      "category": "开发工具",
+      "tags": [
+        "开发工具"
+      ],
+      "title": "腾讯云COS向量",
+      "description": "腾讯云 COS 向量桶管理（索引、存储、相似度搜索）"
+    },
+    "tencent-ssv-techforgood": {
+      "category": "信息资讯",
+      "tags": [
+        "信息资讯"
+      ],
+      "title": "腾讯技术公益智能助手",
+      "description": "专注公益机构数字化赋能的智能助手，围绕腾讯技术公益数字工具箱（techforgood.qq.com）为社会组织匹配免费或低成本数字化产品，支持需求诊断、产品推荐、申领指引、数字化实施参考与必要的机构合规边界提示。当用户提到公益机构数字化、社会组织工具选型、技术公益工具箱、公益虾时使用。"
+    },
+    "tencent-esign-contract": {
+      "category": "OPC·一人公司",
+      "tags": [
+        "OPC·一人公司",
+        "效率工具",
+        "办公协同"
+      ],
+      "title": "腾讯电子签",
+      "description": "合同起草、审查、对比、法规检索轻松搞定，AI秒级响应，专业输出，效率翻倍，做你最安心的合同智能助手。"
+    },
+    "charity-writing-assistant": {
+      "category": "效率工具",
+      "tags": [
+        "效率工具"
+      ],
+      "title": "公益文书助手",
+      "description": "面向公益从业者的一站式文书工作台。分步引导采集项目信息，自动适配各平台规范，生成可直接提交的专业文书；也可将已有材料一键标准化归档。覆盖腾讯公益、字节跳动公益、支付宝公益、微博微公益、京东公益、美团公益等平台。"
+    },
+    "charity-finance-assistant": {
+      "category": "效率工具",
+      "tags": [
+        "效率工具"
+      ],
+      "title": "公益财会助手",
+      "description": "公益票据与财务整理助手。适用于基金会、社会组织、社会服务机构等公益机构的财务和票据管理需求，涵盖捐赠票据开具、日常收支整理、审计准备、费用报销、税前扣除咨询及数据核对等场景。支持 PDF + 图片 OCR 的本地票据批量自动化整理。"
+    },
+    "darwin-skill": {
+      "category": "开发工具",
+      "tags": [
+        "开发工具"
+      ],
+      "description": "自主优化 Agent Skill（8维评分、棘轮机制、自动改进）",
+      "title": "darwin-skill"
+    },
+    "tencent-musician-skills": {
+      "category": "内容创作",
+      "tags": [
+        "内容创作"
+      ],
+      "title": "腾讯音乐人AI助手",
+      "description": "专门为腾讯音乐人打造的音乐智能体，提供智能数据分析、站外宣推建议等一站式服务"
+    },
+    "tencent-yuanbao-standard-search": {
+      "category": "信息资讯",
+      "tags": [
+        "信息资讯"
+      ],
+      "title": "元宝搜索标准版",
+      "description": "元宝搜索标准版skill以互联网全网公开资源为基础，叠加腾讯优质内容生态，结合元宝APP联网搜索应用实践，从数据收录到智能检索召回，全链路构建AI友好搜索引擎。"
+    },
+    "workrally": {
+      "category": "内容创作",
+      "tags": [
+        "内容创作"
+      ],
+      "title": "WorkRally",
+      "description": "WorkRally AI 内容创作（生图、生视频、画布、素材管理）"
+    },
+    "md-to-pdf-cjk": {
+      "category": "效率工具",
+      "tags": [
+        "效率工具"
+      ],
+      "title": "Markdown转PDF（CJK）",
+      "description": "Markdown 转 PDF，原生支持中文/日文/韩文排版"
+    },
+    "install-futu-opend": {
+      "category": "投资理财",
+      "tags": [
+        "投资理财"
+      ],
+      "title": "富途OpenD安装",
+      "description": "富途 OpenD 一键安装与 SDK 升级（Win/Mac/Linux）"
+    },
+    "futuapi": {
+      "category": "投资理财",
+      "tags": [
+        "投资理财"
+      ],
+      "title": "富途行情与交易",
+      "description": "富途行情查询与模拟/实盘交易（港股、美股、A股）"
+    },
+    "wechatpay-basic-payment": {
+      "category": "开发工具",
+      "tags": [
+        "开发工具"
+      ],
+      "title": "微信支付基础支付",
+      "description": "微信支付基础支付接入助手，涵盖支付、退款账单、分账、商户进件、开户意愿确认"
+    },
+    "task-alignment": {
+      "category": "效率工具",
+      "tags": [
+        "效率工具"
+      ],
+      "title": "任务对齐",
+      "description": "把模糊想法对齐成可独立交付的任务契约"
+    },
+    "task-implement": {
+      "category": "效率工具",
+      "tags": [
+        "效率工具"
+      ],
+      "title": "任务执行",
+      "description": "作为用户代理自主执行任务并独立验收交付"
+    },
+    "lingxi-financialsearch-skill": {
+      "category": "投资理财",
+      "tags": [
+        "投资理财"
+      ],
+      "title": "国泰海通金融数据查询",
+      "description": "国泰海通金融数据查询，自然语言查A股行情、财务、技术指标"
+    },
+    "wechatpay-product-coupon": {
+      "category": "开发工具",
+      "tags": [
+        "开发工具"
+      ],
+      "title": "微信支付商品券",
+      "description": "微信支付商品券接入助手（选型、代码示例、排障）"
+    },
+    "andonq": {
+      "category": "效率工具",
+      "tags": [
+        "效率工具"
+      ],
+      "title": "AndonQ",
+      "description": "腾讯云智能客服领域虾，支持工单、需求单、云产品问答、资源查询"
+    },
+    "pdfkit-py": {
+      "category": "效率工具",
+      "tags": [
+        "效率工具"
+      ],
+      "title": "腾讯文档 pdfkit",
+      "description": "PDF全能工具箱，覆盖阅读分析、自然语言编辑、格式转换、表单处理、加密签名、OCR、IR等全场景"
+    },
+    "skill-scanner": {
+      "category": "开发工具",
+      "tags": [
+        "开发工具"
+      ],
+      "title": "Skill安全扫描（朱雀实验室）",
+      "description": "朱雀实验室出品，Skill 安全风险扫描"
+    },
+    "skills-security-check": {
+      "category": "开发工具",
+      "tags": [
+        "开发工具"
+      ],
+      "title": "Skill安全审计（云鼎实验室）",
+      "description": "腾讯云鼎出品，Skill 安全审计工具"
+    },
+    "cloudq": {
+      "category": "开发工具",
+      "tags": [
+        "开发工具"
+      ],
+      "title": "CloudQ",
+      "description": "多云统一管理与智能顾问，支持架构可视化、风险评估与 AI 运维问答"
+    },
+    "crash-expert-skill": {
+      "category": "开发工具",
+      "tags": [
+        "开发工具"
+      ],
+      "title": "TencentOS宕机分析助手",
+      "description": "Linux 内核 vmcore 分析专家，诊断 panic/死锁/OOM 根因"
+    },
+    "jiaozhen-factcheck": {
+      "category": "信息资讯",
+      "tags": [
+        "信息资讯"
+      ],
+      "description": "事实查证与谣言识别，判断信息真伪与可靠性",
+      "title": "jiaozhen-factcheck"
+    },
+    "migraq": {
+      "category": "开发工具",
+      "tags": [
+        "开发工具"
+      ],
+      "title": "MigraQ",
+      "description": "腾讯云迁移服务专家，支持跨云资源扫描、选型推荐、TCO 分析与迁移方案规划"
+    },
+    "tencent-survey": {
+      "category": "办公协同",
+      "tags": [
+        "办公协同"
+      ],
+      "title": "腾讯问卷",
+      "description": "腾讯问卷操作（创建、修改、逻辑设置、统计）"
+    },
+    "tencent-weather": {
+      "category": "生活服务",
+      "tags": [
+        "生活服务"
+      ],
+      "description": "中国各地实时天气和天气预报信息查询，覆盖市级和区县级行政区",
+      "title": "tencent-weather"
+    },
+    "tencentos-expert": {
+      "category": "开发工具",
+      "tags": [
+        "开发工具"
+      ],
+      "title": "TencentOS运维助手",
+      "description": "TencentOS 服务器运维诊断助手，排查磁盘/网络/CPU/内存/安全问题"
+    },
+    "tencentcloud-cls": {
+      "category": "开发工具",
+      "tags": [
+        "开发工具"
+      ],
+      "title": "腾讯云日志服务CLS",
+      "description": "腾讯云日志服务 CLS 助手，提供日志检索、资源管理、指标查询和告警运维能力"
+    },
+    "weiyun": {
+      "category": "开发工具",
+      "tags": [
+        "开发工具"
+      ],
+      "title": "腾讯微云",
+      "description": "管理腾讯微云网盘文件（列表、上传、下载、删除、分享）"
+    },
+    "meituan-coupon-workbuddy": {
+      "category": "生活服务",
+      "tags": [
+        "生活服务"
+      ],
+      "title": "美团红包助手",
+      "description": "美团一键领券，覆盖外卖、团购、酒旅、休闲等多品类"
+    },
+    "meituan-huisheng-coupon": {
+      "category": "生活服务",
+      "tags": [
+        "生活服务"
+      ],
+      "title": "美团惠省优惠助手",
+      "description": "帮用户自动领取美团优惠券并查询当日优惠活动，覆盖外卖、到店餐饮、休闲娱乐、酒旅等全品类"
+    },
+    "ctrip-wendao": {
+      "category": "生活服务",
+      "tags": [
+        "生活服务"
+      ],
+      "title": "携程问道",
+      "description": "携程智能旅行助手，支持酒店机票预订、行程规划与旅游攻略"
+    },
+    "airchina-travel-assistant": {
+      "category": "生活服务",
+      "tags": [
+        "生活服务"
+      ],
+      "title": "国航出行助手",
+      "description": "免费领取国航机票优惠券！自动发送到国航会员账户，五一出游好搭子"
+    },
+    "vip-skill": {
+      "category": "生活服务",
+      "tags": [
+        "生活服务"
+      ],
+      "title": "唯品会技能集",
+      "description": "唯品会购物助手，整合商品搜索、详情查询、促销活动、图片搜索等一站式购物服务"
+    },
+    "baidu-drive": {
+      "category": "效率工具",
+      "tags": [
+        "效率工具"
+      ],
+      "title": "百度网盘",
+      "description": "百度网盘文件管理，支持上传、下载、转存、分享、搜索等操作"
+    },
+    "jinshuju": {
+      "category": "效率工具",
+      "tags": [
+        "效率工具"
+      ],
+      "title": "金数据",
+      "description": "金数据（Jinshuju）表单平台操作专家，用一句话完成表单搭建、数据查询与批量修改、账单查询，替代登录后台手工操作。"
+    },
+    "tencentmap-lbs-skill": {
+      "category": "开发工具",
+      "tags": [
+        "开发工具"
+      ],
+      "description": "腾讯地图位置服务，支持POI搜索、路径规划、旅游规划、周边搜索，轨迹数据可视化和地图数据可视化",
+      "title": "tencentmap-lbs-skill"
+    },
+    "tdesign-miniprogram": {
+      "category": "开发工具",
+      "tags": [
+        "开发工具"
+      ],
+      "title": "TDesign 微信小程序组件",
+      "description": "TDesign 微信小程序组件库（60+ 组件、主题定制、AI 聊天）"
+    },
+    "skyline": {
+      "category": "开发工具",
+      "tags": [
+        "开发工具"
+      ],
+      "title": "skyline渲染引擎",
+      "description": "微信小程序 Skyline 渲染引擎（组件、动画、路由、样式）"
+    },
+    "wechat-miniprogram": {
+      "category": "OPC·一人公司",
+      "tags": [
+        "OPC·一人公司",
+        "开发工具"
+      ],
+      "title": "微信小程序开发框架",
+      "description": "微信小程序开发框架（模板、组件、API、云开发）"
+    },
+    "wechat-publisher": {
+      "category": "OPC·一人公司",
+      "tags": [
+        "OPC·一人公司",
+        "内容创作"
+      ],
+      "title": "Wechat Publisher",
+      "description": "一键发布 Markdown 到微信公众号草稿箱（多主题、代码高亮、图片自动上传）"
+    },
+    "wechat-article-pro": {
+      "category": "OPC·一人公司",
+      "tags": [
+        "OPC·一人公司",
+        "内容创作"
+      ],
+      "title": "微信公众号文章发布",
+      "description": "公众号长文写作+AI封面+自动发草稿（刘润风格、3000-5000字）"
+    },
+    "wechat-article-search": {
+      "category": "信息资讯",
+      "tags": [
+        "信息资讯"
+      ],
+      "description": "搜索微信公众号文章（标题、摘要、发布时间、来源账号、链接）",
+      "title": "wechat-article-search"
+    },
+    "wecom-weisheng-scrm": {
+      "category": "商业运营",
+      "tags": [
+        "商业运营"
+      ],
+      "title": "微盛企微管家SCRM",
+      "description": "微盛AI·企微管家提供的技能，帮助用户查询和管理企业微信 SCRM 中的客户、客户群、标签、活码、群发、跟进、聊天记录内容等业务数据，可询问AI当前支持的能力清单。"
+    },
+    "cloudbase": {
+      "category": "开发工具",
+      "tags": [
+        "开发工具"
+      ],
+      "title": "腾讯云CloudBase",
+      "description": "帮你从 0 创建，或继续完善网页、小程序和简单工具，支持发布上线、内容保存、用户登录和数据同步。"
+    },
+    "smart-page": {
+      "category": "办公协同",
+      "tags": [
+        "办公协同",
+        "内容创作"
+      ],
+      "title": "腾讯文档智能页面",
+      "description": "腾讯文档智能页面，生成可编辑可分享的在线汇报网页内容"
+    },
+    "qcc-company": {
+      "category": "OPC·一人公司",
+      "tags": [
+        "OPC·一人公司",
+        "商业运营"
+      ],
+      "title": "企查查（工商信息）",
+      "description": "查询和核实企业工商登记信息，支持股权、财务、高管等全维度企业背调"
+    },
+    "kdocs": {
+      "category": "办公协同",
+      "tags": [
+        "办公协同"
+      ],
+      "title": "金山文档| WPS云文档",
+      "description": "金山文档官方 Skill。对话即操作——知识一键存入、碎片内容整理、接龙转表格、文档转 Markdown、表格美化、收发表生成，全在一句话内完成。"
+    },
+    "fadada-document-sign": {
+      "category": "商业运营",
+      "tags": [
+        "商业运营"
+      ],
+      "title": "法大大电子签",
+      "description": "法大大电子签，支持合同发起、查询、撤回和下载全生命周期"
+    },
+    "dingtalk-unified": {
+      "category": "办公协同",
+      "tags": [
+        "办公协同"
+      ],
+      "title": "钉钉套件",
+      "description": "钉钉 CLI 套件，覆盖消息、日历、待办、审批、考勤、日志、文档、AI 表格、钉盘、AI 听记、邮箱等 14 个产品能力"
+    },
+    "lark-unified": {
+      "category": "办公协同",
+      "tags": [
+        "办公协同"
+      ],
+      "title": "飞书套件",
+      "description": "飞书/Lark 全能套件（消息、文档、表格、日历、任务、Wiki 等 11 个业务域）"
+    },
+    "promo-creator-skills": {
+      "category": "内容创作",
+      "tags": [
+        "内容创作"
+      ],
+      "title": "Promo Creator",
+      "description": "产品宣传片全流程制作，涵盖简报、分镜、素材、剪辑、配乐到交付"
+    },
+    "guizang-ppt-skill": {
+      "category": "内容创作",
+      "tags": [
+        "内容创作"
+      ],
+      "title": "Magazine Web PPT",
+      "description": "歸藏的 PPT Skills，生成高质量网页 PPT、演讲 deck 与多比例封面，内置电子杂志风和瑞士国际主义两套视觉系统。"
+    },
+    "yingmi-skill": {
+      "category": "投资理财",
+      "tags": [
+        "投资理财"
+      ],
+      "title": "盈米Skills",
+      "description": "基金查询、组合诊断、资产配置与财富规划的金融数据助手"
+    },
+    "obsidian": {
+      "category": "效率工具",
+      "tags": [
+        "效率工具"
+      ],
+      "description": "Obsidian 知识库管理与自动化",
+      "title": "obsidian"
+    },
+    "academic-tutor": {
+      "category": "教育学习",
+      "tags": [
+        "教育学习"
+      ],
+      "title": "学业导师",
+      "description": "记住你的专业和进度，用苏格拉底式引导拆解思路，覆盖数理化/编程/经管/文史哲全学科"
+    },
+    "knowledge-framework-builder": {
+      "category": "教育学习",
+      "tags": [
+        "教育学习"
+      ],
+      "title": "知识框架梳理",
+      "description": "输入课程名或教材资料，生成结构化知识框架图，支持三档深度和多格式导出"
+    },
+    "material-organizer": {
+      "category": "教育学习",
+      "tags": [
+        "教育学习"
+      ],
+      "title": "资料整理",
+      "description": "批量导入链接/PDF/笔记/截图，自动提炼要点、按主题分类归档、生成结构化研究笔记"
+    },
+    "english-exam-writing-reviewer": {
+      "category": "教育学习",
+      "tags": [
+        "教育学习"
+      ],
+      "title": "英语作文批改",
+      "description": "覆盖四六级/考研英语作文，严格对齐官方档次制评分，逐句批注+升档建议+HTML批改报告"
+    },
+    "english-intensive-reader": {
+      "category": "教育学习",
+      "tags": [
+        "教育学习"
+      ],
+      "title": "英语精读",
+      "description": "输入英文文章，逐句语法拆解+生词分级标注，生成双栏阅读笔记，支持加入单词本和导出Anki"
+    },
+    "paper-quick-reader": {
+      "category": "教育学习",
+      "tags": [
+        "教育学习"
+      ],
+      "title": "论文速读",
+      "description": "输入论文PDF，秒出核心观点/方法/结论摘要，支持三档深度和多篇对比分析"
+    },
+    "academic-translation": {
+      "category": "教育学习",
+      "tags": [
+        "教育学习"
+      ],
+      "title": "学术翻译",
+      "description": "学术论文中英互译，三步法（直译→反思→雅化），公式零损伤，顶会术语库，双栏对照输出"
+    },
+    "resume-assistant": {
+      "category": "教育学习",
+      "tags": [
+        "教育学习"
+      ],
+      "title": "简历助手",
+      "description": "输入经历+目标岗位JD，生成针对性简历或润色改写，三维度防幻觉，支持中英双版和ATS友好PDF"
+    },
+    "study-planner": {
+      "category": "教育学习",
+      "tags": [
+        "教育学习"
+      ],
+      "title": "学习规划师",
+      "description": "输入目标+截止日+每日时长，输出分阶段学习计划和每日任务清单，支持打卡和进度追踪"
+    },
+    "plan-tracker": {
+      "category": "教育学习",
+      "tags": [
+        "教育学习",
+        "效率工具"
+      ],
+      "title": "目标拆解与打卡助手",
+      "description": "每日任务提醒+完成打卡+进度可视化+AI预警，支持ABC三档任务和游戏化激励"
+    },
+    "caveman": {
+      "category": "效率工具",
+      "tags": [
+        "效率工具"
+      ],
+      "description": "超压缩沟通模式：去除废话保留技术精度，节省约 75% token",
+      "title": "caveman"
+    },
+    "diagnose": {
+      "category": "开发工具",
+      "tags": [
+        "开发工具"
+      ],
+      "description": "系统化调试：重现 → 假设 → 验证 → 修复 → 回归测试",
+      "title": "diagnose"
+    },
+    "grill-me": {
+      "category": "开发工具",
+      "tags": [
+        "开发工具"
+      ],
+      "description": "深度追问式方案审查：逐层拆解设计决策，直到达成共识",
+      "title": "grill-me"
+    },
+    "handoff": {
+      "category": "效率工具",
+      "tags": [
+        "效率工具"
+      ],
+      "description": "将当前对话压缩为交接文档，供下一个 Agent 无缝接续工作",
+      "title": "handoff"
+    },
+    "setup-pre-commit": {
+      "category": "开发工具",
+      "tags": [
+        "开发工具"
+      ],
+      "description": "为 JS/TS 项目配置 Husky pre-commit hooks（lint-staged + Prettier + 类型检查 + 测试）",
+      "title": "setup-pre-commit"
+    },
+    "tdd": {
+      "category": "开发工具",
+      "tags": [
+        "开发工具"
+      ],
+      "description": "测试驱动开发：红→绿→重构，以行为测试驱动实现",
+      "title": "tdd"
+    },
+    "zoom-out": {
+      "category": "开发工具",
+      "tags": [
+        "开发工具"
+      ],
+      "description": "提升抽象层次，快速获取陌生代码模块的全局地图与调用关系",
+      "title": "zoom-out"
+    },
+    "trello": {
+      "category": "办公协同",
+      "tags": [
+        "办公协同"
+      ],
+      "description": "管理 Trello 看板、列表和卡片",
+      "title": "trello"
+    },
+    "gog": {
+      "category": "办公协同",
+      "tags": [
+        "办公协同"
+      ],
+      "title": "Google全家桶",
+      "description": "Google Workspace 全家桶（邮件、日历、文档等）"
+    },
+    "gmail": {
+      "category": "办公协同",
+      "tags": [
+        "办公协同"
+      ],
+      "title": "Gmail",
+      "description": "通过 Gmail API 收发邮件、管理标签和草稿"
+    },
+    "summarize": {
+      "category": "内容创作",
+      "tags": [
+        "内容创作"
+      ],
+      "title": "内容总结",
+      "description": "总结网页、PDF、音频和视频内容"
+    },
+    "caldav-calendar": {
+      "category": "办公协同",
+      "tags": [
+        "办公协同"
+      ],
+      "title": "CalDAV 日历",
+      "description": "同步和查询 CalDAV 日历（iCloud、Google、Fastmail、Nextcloud 等），仅支持 Linux"
+    },
+    "cangjie-skill": {
+      "category": "开发工具",
+      "tags": [
+        "开发工具"
+      ],
+      "title": "book2skill",
+      "description": "把书蒸馏成可执行的技能（拆书、方法论提取）"
+    },
+    "things-mac": {
+      "category": "办公协同",
+      "tags": [
+        "办公协同"
+      ],
+      "title": "Things任务",
+      "description": "管理 Things 3 任务和项目"
+    },
+    "apple-notes": {
+      "category": "内容创作",
+      "tags": [
+        "内容创作"
+      ],
+      "title": "Apple备忘录",
+      "description": "管理 Apple 备忘录（创建、搜索、导出）"
+    },
+    "apple-reminders": {
+      "category": "办公协同",
+      "tags": [
+        "办公协同"
+      ],
+      "title": "Apple提醒事项",
+      "description": "管理 Apple 提醒事项（添加、编辑、完成）"
+    },
+    "nano-pdf": {
+      "category": "内容创作",
+      "tags": [
+        "内容创作"
+      ],
+      "title": "轻量PDF编辑器",
+      "description": "用自然语言编辑 PDF 文件"
+    },
+    "minimax-xlsx": {
+      "category": "效率工具",
+      "tags": [
+        "效率工具"
+      ],
+      "title": "Excel 文件处理",
+      "description": "Excel 文件创建与分析"
+    },
+    "minimax-docx": {
+      "category": "效率工具",
+      "tags": [
+        "效率工具"
+      ],
+      "title": "Word 文档生成",
+      "description": "Word 文档生成与编辑"
+    },
+    "minimax-pdf": {
+      "category": "效率工具",
+      "tags": [
+        "效率工具"
+      ],
+      "title": "PDF 文档生成",
+      "description": "高质量 PDF 文档生成"
+    },
+    "pptx-generator": {
+      "category": "OPC·一人公司",
+      "tags": [
+        "OPC·一人公司",
+        "效率工具"
+      ],
+      "title": "PPT 演示文稿",
+      "description": "PowerPoint 演示文稿生成"
+    },
+    "note-organizer": {
+      "category": "效率工具",
+      "tags": [
+        "效率工具"
+      ],
+      "title": "Joplin笔记管理",
+      "description": "基于 Joplin 的个人笔记管理与知识库工具"
+    },
+    "qmd": {
+      "category": "效率工具",
+      "tags": [
+        "效率工具"
+      ],
+      "title": "笔记搜索",
+      "description": "本地 Markdown 笔记搜索引擎"
+    },
+    "notebooklm-studio": {
+      "category": "教育学习",
+      "tags": [
+        "教育学习"
+      ],
+      "title": "NotebookLM Studio",
+      "description": "NotebookLM 学习工作室：导入多种来源，生成播客、测验、抽认卡、思维导图等学习产物"
+    },
+    "nuwa-skill": {
+      "category": "开发工具",
+      "tags": [
+        "开发工具"
+      ],
+      "title": "女娲",
+      "description": "蒸馏人物思维框架，生成可运行的人物 Skill"
+    },
+    "education": {
+      "category": "教育学习",
+      "tags": [
+        "教育学习"
+      ],
+      "title": "Education",
+      "description": "学习助手：生成学习计划、测验、抽认卡、复习材料并跟踪进度"
+    },
+    "open-lesson": {
+      "category": "教育学习",
+      "tags": [
+        "教育学习"
+      ],
+      "title": "openLesson",
+      "description": "苏格拉底式 AI 辅导：生成学习计划、音频对话式教学、诊断推理差距"
+    },
+    "tutor-skills": {
+      "category": "教育学习",
+      "tags": [
+        "教育学习"
+      ],
+      "description": "将文档/代码转为 Obsidian 学习库，自动出题、测验并跟踪掌握度",
+      "title": "tutor-skills"
+    },
+    "citation-manager": {
+      "category": "教育学习",
+      "tags": [
+        "教育学习"
+      ],
+      "title": "学术引用管理",
+      "description": "学术引用管理，为论文添加真实参考文献并规范引用标注"
+    },
+    "healthcheck": {
+      "category": "生活服务",
+      "tags": [
+        "生活服务"
+      ],
+      "title": "健康打卡",
+      "description": "追踪每日饮水和睡眠记录"
+    },
+    "habit-tracker": {
+      "category": "效率工具",
+      "tags": [
+        "效率工具"
+      ],
+      "title": "习惯打卡",
+      "description": "通过打卡、连续记录和可视化培养良好习惯"
+    },
+    "goal-tracker": {
+      "category": "效率工具",
+      "tags": [
+        "效率工具"
+      ],
+      "title": "goal-tracker（目标追踪）",
+      "description": "追踪长期目标、里程碑、每日记录与问责系统"
+    },
+    "imap-smtp-email": {
+      "category": "办公协同",
+      "tags": [
+        "办公协同"
+      ],
+      "title": "IMAP/SMTP邮件",
+      "description": "通过 IMAP/SMTP 收发邮件，支持多账户和附件"
+    },
+    "email-daily-summary": {
+      "category": "办公协同",
+      "tags": [
+        "办公协同"
+      ],
+      "title": "邮件日报摘要",
+      "description": "自动登录邮箱生成每日邮件摘要(Gmail/Outlook/QQ邮箱等)"
+    },
+    "email-skill": {
+      "category": "办公协同",
+      "tags": [
+        "办公协同"
+      ],
+      "title": "邮件管理",
+      "description": "邮件管理与自动化，支持多邮件服务商收发搜索"
+    },
+    "himalaya": {
+      "category": "办公协同",
+      "tags": [
+        "办公协同"
+      ],
+      "title": "Himalaya邮件",
+      "description": "终端邮件管理（收发、搜索、多账户）"
+    },
+    "imsg": {
+      "category": "办公协同",
+      "tags": [
+        "办公协同"
+      ],
+      "title": "iMessage",
+      "description": "iMessage/短信收发与历史查看"
+    },
+    "agent-mail": {
+      "category": "办公协同",
+      "tags": [
+        "办公协同"
+      ],
+      "title": "智能体邮箱",
+      "description": "AI 智能体专属邮箱，收发邮件"
+    },
+    "wacli": {
+      "category": "办公协同",
+      "tags": [
+        "办公协同"
+      ],
+      "title": "WhatsApp",
+      "description": "发送 WhatsApp 消息和同步历史"
+    },
+    "weather": {
+      "category": "生活服务",
+      "tags": [
+        "生活服务"
+      ],
+      "title": "天气查询",
+      "description": "查询天气预报，无需 API 密钥"
+    },
+    "perplexity": {
+      "category": "信息资讯",
+      "tags": [
+        "信息资讯"
+      ],
+      "title": "Perplexity 搜索",
+      "description": "通过 Perplexity API 进行 AI 联网搜索，返回带引用来源的答案，支持批量查询"
+    },
+    "brand-guidelines": {
+      "category": "内容创作",
+      "tags": [
+        "内容创作"
+      ],
+      "title": "品牌设计规范",
+      "description": "应用 Anthropic 品牌配色和排版到设计产物"
+    },
+    "multi-search-engine": {
+      "category": "信息资讯",
+      "tags": [
+        "信息资讯"
+      ],
+      "title": "多引擎搜索",
+      "description": "集成 17 个搜索引擎（8 国内 + 9 国际），无需 API"
+    },
+    "web-search-exa": {
+      "category": "信息资讯",
+      "tags": [
+        "信息资讯"
+      ],
+      "title": "Exa 网络搜索",
+      "description": "基于 Exa 的神经网络搜索引擎，语义搜索、内容提取与深度研究"
+    },
+    "blogwatcher": {
+      "category": "信息资讯",
+      "tags": [
+        "信息资讯"
+      ],
+      "title": "博客监控",
+      "description": "监控博客和 RSS 订阅源更新"
+    },
+    "news-summary": {
+      "category": "信息资讯",
+      "tags": [
+        "信息资讯"
+      ],
+      "title": "新闻摘要",
+      "description": "从国际 RSS 源获取新闻并生成摘要和语音播报"
+    },
+    "arxiv-reader": {
+      "category": "教育学习",
+      "tags": [
+        "教育学习"
+      ],
+      "title": "ArXiv论文精读",
+      "description": "基于 LLM 的 ArXiv 论文分类与深度阅读工具"
+    },
+    "arxiv-watcher": {
+      "category": "信息资讯",
+      "tags": [
+        "信息资讯",
+        "教育学习"
+      ],
+      "title": "ArXiv论文追踪",
+      "description": "搜索和总结 ArXiv 最新研究论文"
+    },
+    "github-ai-trends": {
+      "category": "信息资讯",
+      "tags": [
+        "信息资讯"
+      ],
+      "title": "GitHub AI趋势追踪",
+      "description": "生成 GitHub AI 热门项目趋势排行榜报告"
+    },
+    "github-trending-cn": {
+      "category": "信息资讯",
+      "tags": [
+        "信息资讯"
+      ],
+      "title": "GitHub热门项目",
+      "description": "获取 GitHub 今日/本周/本月热门项目，支持语言过滤"
+    },
+    "earnings-tracker": {
+      "category": "投资理财",
+      "tags": [
+        "投资理财"
+      ],
+      "title": "财报追踪",
+      "description": "AI 驱动的 A 股/美股财报追踪与智能分析推送"
+    },
+    "macro-monitor": {
+      "category": "投资理财",
+      "tags": [
+        "投资理财"
+      ],
+      "title": "宏观数据监控",
+      "description": "每日自动采集宏观经济数据和政策信息并推送"
+    },
+    "deep-research": {
+      "category": "OPC·一人公司",
+      "tags": [
+        "OPC·一人公司",
+        "信息资讯"
+      ],
+      "title": "Deep Research",
+      "description": "结构化深度调研工作流，支持大纲生成、并行搜索、报告输出"
+    },
+    "admapix": {
+      "category": "商业运营",
+      "tags": [
+        "商业运营",
+        "数据分析"
+      ],
+      "title": "AdMapix",
+      "description": "广告素材搜索、竞品分析、应用排行与市场洞察"
+    },
+    "market-researcher": {
+      "category": "OPC·一人公司",
+      "tags": [
+        "OPC·一人公司",
+        "信息资讯"
+      ],
+      "title": "市场调研",
+      "description": "市场调研专家，提供市场分析、消费者洞察与机会评估"
+    },
+    "idea-validator": {
+      "category": "OPC·一人公司",
+      "tags": [
+        "OPC·一人公司",
+        "商业运营"
+      ],
+      "title": "创业验证",
+      "description": "创业想法验证，评估问题-方案匹配度与市场机会"
+    },
+    "github": {
+      "category": "开发工具",
+      "tags": [
+        "开发工具"
+      ],
+      "description": "管理 GitHub Issues、PR 和 CI",
+      "title": "github"
+    },
+    "mcp-builder": {
+      "category": "开发工具",
+      "tags": [
+        "开发工具"
+      ],
+      "title": "MCP开发指南",
+      "description": "MCP 服务器开发指南，集成外部 API 和服务，支持 Python/Node"
+    },
+    "api-gateway": {
+      "category": "开发工具",
+      "tags": [
+        "开发工具"
+      ],
+      "title": "API Gateway",
+      "description": "连接 100+ API 服务（Google、Microsoft、GitHub 等），通过 OAuth 管理授权"
+    },
+    "impeccable": {
+      "category": "OPC·一人公司",
+      "tags": [
+        "OPC·一人公司",
+        "开发工具"
+      ],
+      "title": "Impeccable（前端设计工具集）",
+      "description": "高品质 UI/UX 设计工具集：帮助生成独特、生产级的前端界面，涵盖视觉风格、布局排版、动效交互、质量保障、设计系统等全方位设计能力，避免泛 AI 审美"
+    },
+    "frontend-dev": {
+      "category": "OPC·一人公司",
+      "tags": [
+        "OPC·一人公司",
+        "开发工具"
+      ],
+      "title": "前端开发",
+      "description": "前端开发与 AI 媒体生成"
+    },
+    "fullstack-dev": {
+      "category": "OPC·一人公司",
+      "tags": [
+        "OPC·一人公司",
+        "开发工具"
+      ],
+      "title": "全栈开发",
+      "description": "全栈应用架构与开发指南"
+    },
+    "ios-application-dev": {
+      "category": "OPC·一人公司",
+      "tags": [
+        "OPC·一人公司",
+        "开发工具"
+      ],
+      "title": "iOS 应用开发",
+      "description": "iOS 应用开发指南"
+    },
+    "android-native-dev": {
+      "category": "OPC·一人公司",
+      "tags": [
+        "OPC·一人公司",
+        "开发工具"
+      ],
+      "title": "Android 原生开发",
+      "description": "Android 原生应用开发指南"
+    },
+    "react-native-dev": {
+      "category": "OPC·一人公司",
+      "tags": [
+        "OPC·一人公司",
+        "开发工具"
+      ],
+      "title": "React Native 开发",
+      "description": "React Native 跨平台开发指南"
+    },
+    "flutter-dev": {
+      "category": "OPC·一人公司",
+      "tags": [
+        "OPC·一人公司",
+        "开发工具"
+      ],
+      "title": "Flutter 开发",
+      "description": "Flutter 跨平台开发指南"
+    },
+    "shader-dev": {
+      "category": "开发工具",
+      "tags": [
+        "开发工具"
+      ],
+      "title": "GLSL Shader 开发",
+      "description": "GLSL Shader 视觉效果开发"
+    },
+    "sino-drug-instructions-search": {
+      "category": "生活服务",
+      "tags": [
+        "生活服务"
+      ],
+      "title": "药品说明书检索",
+      "description": "药品说明书与用药信息检索：支持自然语言查询适应症、禁忌、用法用量、不良反应、注意事项、成分、规格与厂家等；也可根据症状或疾病查找相关药品。"
+    },
+    "browser-use": {
+      "category": "效率工具",
+      "tags": [
+        "效率工具"
+      ],
+      "title": "浏览器自动化",
+      "description": "浏览器自动化（导航、点击、截图、数据提取、多会话、云浏览器）"
+    },
+    "web-access": {
+      "category": "效率工具",
+      "tags": [
+        "效率工具"
+      ],
+      "title": "Web Access（浏览器自动化）",
+      "description": "CDP 直连本地 Chrome，智能调度联网工具，支持登录态、并行批量操作"
+    },
+    "tmux": {
+      "category": "开发工具",
+      "tags": [
+        "开发工具"
+      ],
+      "description": "远程控制 tmux 交互式终端会话",
+      "title": "tmux"
+    },
+    "fintech-engineer": {
+      "category": "开发工具",
+      "tags": [
+        "开发工具",
+        "投资理财"
+      ],
+      "title": "金融科技工程师",
+      "description": "金融科技工程专家：支付系统、银行API集成、PCI DSS/AML/KYC合规、安全交易架构"
+    },
+    "cli-anything-hub": {
+      "category": "开发工具",
+      "tags": [
+        "开发工具"
+      ],
+      "description": "发现并安装面向 AI 智能体的 CLI 工具市场（创意、生产力、AI 平台等）",
+      "title": "cli-anything-hub"
+    },
+    "prompt-engineering-expert": {
+      "category": "开发工具",
+      "tags": [
+        "开发工具"
+      ],
+      "title": "提示词工程专家",
+      "description": "提示词工程专家：编写、分析、优化提示词和 AI 指令，覆盖最佳实践与高级技巧"
+    },
+    "humanizer": {
+      "category": "OPC·一人公司",
+      "tags": [
+        "OPC·一人公司",
+        "内容创作"
+      ],
+      "title": "去AI味",
+      "description": "去除文本中的 AI 写作痕迹"
+    },
+    "nano-banana-pro": {
+      "category": "OPC·一人公司",
+      "tags": [
+        "OPC·一人公司",
+        "内容创作"
+      ],
+      "title": "AI绘图",
+      "description": "AI 图片生成与编辑（支持 4K）"
+    },
+    "openai-image-gen": {
+      "category": "内容创作",
+      "tags": [
+        "内容创作"
+      ],
+      "title": "批量绘图",
+      "description": "批量生成图片并创建图库"
+    },
+    "sag": {
+      "category": "内容创作",
+      "tags": [
+        "内容创作"
+      ],
+      "title": "文字转语音",
+      "description": "文字转语音（ElevenLabs）"
+    },
+    "openai-whisper": {
+      "category": "内容创作",
+      "tags": [
+        "内容创作"
+      ],
+      "title": "本地语音转文字",
+      "description": "本地语音转文字（无需 API 密钥）"
+    },
+    "openai-whisper-api": {
+      "category": "内容创作",
+      "tags": [
+        "内容创作"
+      ],
+      "title": "语音转文字API",
+      "description": "通过 OpenAI API 转录音频"
+    },
+    "video-frames": {
+      "category": "内容创作",
+      "tags": [
+        "内容创作"
+      ],
+      "title": "视频截帧",
+      "description": "从视频提取帧或短片段"
+    },
+    "remotion-video-toolkit": {
+      "category": "内容创作",
+      "tags": [
+        "内容创作"
+      ],
+      "title": "Remotion 视频创作",
+      "description": "用 React + Remotion 编写代码生成程序化视频，支持动画、字幕、3D、云端渲染"
+    },
+    "songsee": {
+      "category": "内容创作",
+      "tags": [
+        "内容创作"
+      ],
+      "title": "音频可视化",
+      "description": "从音频生成频谱图和可视化"
+    },
+    "gifgrep": {
+      "category": "内容创作",
+      "tags": [
+        "内容创作"
+      ],
+      "title": "GIF搜索",
+      "description": "搜索和下载 GIF 动图"
+    },
+    "gif-sticker-maker": {
+      "category": "内容创作",
+      "tags": [
+        "内容创作"
+      ],
+      "title": "GIF 贴纸制作",
+      "description": "照片转动态 GIF 贴纸"
+    },
+    "canvas-design": {
+      "category": "内容创作",
+      "tags": [
+        "内容创作"
+      ],
+      "title": "canvas-design（视觉设计）",
+      "description": "基于设计哲学创作精美视觉艺术（PNG/PDF）"
+    },
+    "stealth-browser": {
+      "category": "效率工具",
+      "tags": [
+        "效率工具"
+      ],
+      "title": "Stealth Browser",
+      "description": "四层反检测浏览器自动化，支持隐身登录与验证码绕过"
+    },
+    "agent-browser-core": {
+      "category": "效率工具",
+      "tags": [
+        "效率工具"
+      ],
+      "title": "Agent Browser Core",
+      "description": "基于 agent-browser CLI 的 AI 友好型网页自动化"
+    },
+    "playwright-browser-automation": {
+      "category": "效率工具",
+      "tags": [
+        "效率工具"
+      ],
+      "title": "Playwright Browser Automation",
+      "description": "直接调用 Playwright API 实现浏览器自动化（无需 MCP）"
+    },
+    "stagehand-browser-cli": {
+      "category": "效率工具",
+      "tags": [
+        "效率工具"
+      ],
+      "title": "Stagehand Browser CLI",
+      "description": "Stagehand CLI 自然语言浏览器自动化（支持本地/云端）"
+    },
+    "playwright-scraper-skill": {
+      "category": "效率工具",
+      "tags": [
+        "效率工具"
+      ],
+      "title": "Playwright Scraper",
+      "description": "Playwright 隐身网页抓取，支持反爬绕过与验证码处理"
+    },
+    "porteden-email": {
+      "category": "办公协同",
+      "tags": [
+        "办公协同"
+      ],
+      "title": "PortEden Email",
+      "description": "安全邮件管理，支持 Gmail/Outlook/Exchange 多账户"
+    },
+    "smooth-browser": {
+      "category": "效率工具",
+      "tags": [
+        "效率工具"
+      ],
+      "title": "Smooth Browser",
+      "description": "Smooth.sh 云端 AI 浏览器代理，自然语言驱动网页操作"
+    },
+    "clawbrowser": {
+      "category": "效率工具",
+      "tags": [
+        "效率工具"
+      ],
+      "title": "ClawBrowser",
+      "description": "通过 Playwright CLI 驱动浏览器（快照、表单、会话管理）"
+    },
+    "browser-cash": {
+      "category": "效率工具",
+      "tags": [
+        "效率工具"
+      ],
+      "title": "Browser.cash",
+      "description": "Browser.cash 云端反封锁浏览器会话（绕过 Cloudflare 等）"
+    },
+    "web-scraper": {
+      "category": "效率工具",
+      "tags": [
+        "效率工具"
+      ],
+      "title": "Web Scraper",
+      "description": "多策略五阶段网页抓取管道（HTTP/解析/渲染/清洗/LLM提取）"
+    },
+    "browser": {
+      "category": "效率工具",
+      "tags": [
+        "效率工具"
+      ],
+      "title": "Browser (Puppeteer)",
+      "description": "Puppeteer 无头浏览器，渲染 JS 页面并提取纯文本"
+    },
+    "browserwing": {
+      "category": "效率工具",
+      "tags": [
+        "效率工具"
+      ],
+      "title": "BrowserWing",
+      "description": "BrowserWing HTTP API 浏览器自动化（导航、交互、数据提取）"
+    },
+    "infographic-maker": {
+      "category": "内容创作",
+      "tags": [
+        "内容创作"
+      ],
+      "title": "Infographic Maker",
+      "description": "把文章、概念和数据提炼成手绘卡通信息图"
+    },
+    "excalidraw-diagram": {
+      "category": "开发工具",
+      "tags": [
+        "开发工具"
+      ],
+      "title": "Excalidraw Diagram",
+      "description": "Excalidraw 图解生成与渲染校验"
+    },
+    "deck-generator": {
+      "category": "内容创作",
+      "tags": [
+        "内容创作"
+      ],
+      "description": "AI 驱动的演示文稿生成，统一视觉风格的幻灯片",
+      "title": "deck-generator"
+    },
+    "content-factory": {
+      "category": "OPC·一人公司",
+      "tags": [
+        "OPC·一人公司",
+        "内容创作"
+      ],
+      "title": "内容工厂",
+      "description": "多智能体内容生产系统，一份素材生成多种格式"
+    },
+    "content-repurposer": {
+      "category": "OPC·一人公司",
+      "tags": [
+        "OPC·一人公司",
+        "内容创作"
+      ],
+      "title": "内容分发",
+      "description": "将长文内容转化为多平台优化的社交媒体片段"
+    },
+    "content-ops": {
+      "category": "内容创作",
+      "tags": [
+        "内容创作"
+      ],
+      "description": "内容质量评分与专家评审面板，递归迭代至 90+ 分",
+      "title": "content-ops"
+    },
+    "autoresearch": {
+      "category": "OPC·一人公司",
+      "tags": [
+        "OPC·一人公司",
+        "商业运营"
+      ],
+      "description": "Karpathy 风格内容优化，50+ 变体 + 专家评分 + 进化迭代",
+      "title": "autoresearch"
+    },
+    "podcast-ops": {
+      "category": "OPC·一人公司",
+      "tags": [
+        "OPC·一人公司",
+        "内容创作"
+      ],
+      "description": "播客内容拆解流水线，一期节目生成 20+ 跨平台内容",
+      "title": "podcast-ops"
+    },
+    "skill-creator": {
+      "category": "开发工具",
+      "tags": [
+        "开发工具"
+      ],
+      "title": "技能创建指南",
+      "description": "创建和维护自定义技能的指南"
+    },
+    "skill-vetter": {
+      "category": "开发工具",
+      "tags": [
+        "开发工具"
+      ],
+      "description": "安装前审查技能的安全性",
+      "title": "skill-vetter"
+    },
+    "mcporter": {
+      "category": "开发工具",
+      "tags": [
+        "开发工具"
+      ],
+      "title": "MCP管理器",
+      "description": "管理和调用 MCP 服务器与工具"
+    },
+    "peekaboo": {
+      "category": "效率工具",
+      "tags": [
+        "效率工具"
+      ],
+      "title": "macOS界面自动化",
+      "description": "截取和自动化 macOS 界面操作"
+    },
+    "oracle": {
+      "category": "开发工具",
+      "tags": [
+        "开发工具"
+      ],
+      "title": "AI交叉审查",
+      "description": "调用第二个 AI 模型交叉审查代码"
+    },
+    "agent-team-orchestration": {
+      "category": "开发工具",
+      "tags": [
+        "开发工具"
+      ],
+      "title": "Agent Team Orchestration",
+      "description": "多智能体团队编排：角色定义、任务流转、交接协议与质量门禁"
+    },
+    "capability-evolver": {
+      "category": "开发工具",
+      "tags": [
+        "开发工具"
+      ],
+      "description": "AI Agent 自演化引擎，分析运行历史并自动优化能力",
+      "title": "capability-evolver"
+    },
+    "model-usage": {
+      "category": "开发工具",
+      "tags": [
+        "开发工具"
+      ],
+      "title": "模型用量统计",
+      "description": "通过 CodexBar CLI 统计各模型使用量和费用，支持当前模型或全量明细（仅 macOS）"
+    },
+    "comworker-assets-to-workbuddy": {
+      "category": "开发工具",
+      "tags": [
+        "开发工具"
+      ],
+      "title": "ComWorker记忆迁移",
+      "description": "将 ComWorker 资产迁移到 WorkBuddy（身份、记忆、技能、MCP、Bot 配置）"
+    },
+    "llm-wiki": {
+      "category": "效率工具",
+      "tags": [
+        "效率工具",
+        "教育学习"
+      ],
+      "title": "Karpathy LLM Wiki",
+      "description": "用 LLM 增量构建和维护个人知识库 Wiki"
+    },
+    "anti-distill": {
+      "category": "开发工具",
+      "tags": [
+        "开发工具"
+      ],
+      "title": "反蒸馏",
+      "description": "反蒸馏防御：清洗 Skill 文件，看起来完整但核心知识已脱敏"
+    },
+    "marketing-skills": {
+      "category": "商业运营",
+      "tags": [
+        "商业运营",
+        "内容创作"
+      ],
+      "title": "营销技能库",
+      "description": "23个营销模块：CRO、SEO、文案、分析、投放、产品发布、社交媒体，含检查清单和即用模板"
+    },
+    "seo-ops": {
+      "category": "OPC·一人公司",
+      "tags": [
+        "OPC·一人公司",
+        "商业运营"
+      ],
+      "description": "SEO 运营自动化，内容攻击简报、GSC 优化与趋势侦察",
+      "title": "seo-ops"
+    },
+    "growth-engine": {
+      "category": "OPC·一人公司",
+      "tags": [
+        "OPC·一人公司",
+        "商业运营"
+      ],
+      "description": "自主营销实验引擎，自动运行、度量与优化增长实验",
+      "title": "growth-engine"
+    },
+    "conversion-ops": {
+      "category": "商业运营",
+      "tags": [
+        "商业运营",
+        "内容创作"
+      ],
+      "description": "CRO 审计与落地页转化优化，调查问卷转化为引流磁铁",
+      "title": "conversion-ops"
+    },
+    "outbound-engine": {
+      "category": "OPC·一人公司",
+      "tags": [
+        "OPC·一人公司",
+        "办公协同"
+      ],
+      "description": "自动化外拓邮件引擎，从 ICP 定义到邮件入站全流程",
+      "title": "outbound-engine"
+    },
+    "sales-pipeline": {
+      "category": "商业运营",
+      "tags": [
+        "商业运营"
+      ],
+      "description": "销售管道自动化，匿名访客转化、沉睡交易激活与 ICP 学习",
+      "title": "sales-pipeline"
+    },
+    "sales-playbook": {
+      "category": "商业运营",
+      "tags": [
+        "商业运营"
+      ],
+      "description": "基于价值的定价与销售剧本，通话分析与报价打包",
+      "title": "sales-playbook"
+    },
+    "revenue-intelligence": {
+      "category": "商业运营",
+      "tags": [
+        "商业运营"
+      ],
+      "description": "收入归因分析，销售通话洞察与客户报告自动生成",
+      "title": "revenue-intelligence"
+    },
+    "finance-ops": {
+      "category": "OPC·一人公司",
+      "tags": [
+        "OPC·一人公司",
+        "投资理财"
+      ],
+      "description": "AI CFO 助手，财务简报、成本分析与场景建模",
+      "title": "finance-ops"
+    },
+    "team-ops": {
+      "category": "办公协同",
+      "tags": [
+        "办公协同"
+      ],
+      "description": "团队绩效审计与会议行动项提取，识别 A/B/C 员工",
+      "title": "team-ops"
+    },
+    "x-longform-post": {
+      "category": "OPC·一人公司",
+      "tags": [
+        "OPC·一人公司",
+        "内容创作"
+      ],
+      "description": "撰写 X(Twitter) 长文，创始人语气 + AI 去味检测",
+      "title": "x-longform-post"
+    },
+    "yt-competitive-analysis": {
+      "category": "信息资讯",
+      "tags": [
+        "信息资讯"
+      ],
+      "description": "YouTube 竞品分析，发现爆款视频与标题包装规律",
+      "title": "yt-competitive-analysis"
+    },
+    "agent-mbti": {
+      "category": "开发工具",
+      "tags": [
+        "开发工具"
+      ],
+      "title": "MBTI人格诊断",
+      "description": "基于 MBTI 框架的 AI Agent 人格诊断与配置系统"
+    },
+    "boss-skills": {
+      "category": "开发工具",
+      "tags": [
+        "开发工具"
+      ],
+      "title": "老板.skill",
+      "description": "蒸馏老板或生成企业家原型 Skill，模拟管理风格与决策模式"
+    },
+    "colleague-skill": {
+      "category": "开发工具",
+      "tags": [
+        "开发工具"
+      ],
+      "title": "同事.skill",
+      "description": "把同事蒸馏成 AI Skill，采集飞书/钉钉数据生成人格与工作模型"
+    },
+    "yourself-skill": {
+      "category": "开发工具",
+      "tags": [
+        "开发工具"
+      ],
+      "title": "自己.skill",
+      "description": "把自己蒸馏成 AI Skill，解构聊天记录与日记生成数字分身"
+    },
+    "xurl": {
+      "category": "信息资讯",
+      "tags": [
+        "信息资讯"
+      ],
+      "title": "Twitter分析",
+      "description": "Twitter 研究与内容情报分析"
+    },
+    "didi-ride-skill": {
+      "category": "生活服务",
+      "tags": [
+        "生活服务"
+      ],
+      "title": "滴滴打车",
+      "description": "滴滴打车：叫车、路线规划、订单查询"
+    },
+    "12306-train-assistant": {
+      "category": "生活服务",
+      "tags": [
+        "生活服务"
+      ],
+      "title": "12306 订票助手",
+      "description": "12306 全功能辅助：余票/中转/候补/下单/支付，需登录账号"
+    },
+    "12306": {
+      "category": "生活服务",
+      "tags": [
+        "生活服务"
+      ],
+      "description": "查询 12306 国内列车时刻、余票与站点信息",
+      "title": "12306"
+    },
+    "flyai": {
+      "category": "生活服务",
+      "tags": [
+        "生活服务"
+      ],
+      "description": "基于飞猪 MCP，自然语言搜索机票、酒店、景点、演唱会，支持一站式预订",
+      "title": "flyai"
+    },
+    "travel-cn": {
+      "category": "生活服务",
+      "tags": [
+        "生活服务"
+      ],
+      "description": "聚合去哪儿、携程、飞猪，查机票、酒店、火车票、景点门票",
+      "title": "travel-cn"
+    },
+    "flights-search": {
+      "category": "生活服务",
+      "tags": [
+        "生活服务"
+      ],
+      "description": "通过 Google Flights 搜索航班，支持城市名、舱位筛选和预订链接",
+      "title": "flights-search"
+    },
+    "airbnb": {
+      "category": "生活服务",
+      "tags": [
+        "生活服务"
+      ],
+      "description": "搜索 Airbnb 房源，含价格、评分和预订链接，无需 API Key",
+      "title": "airbnb"
+    },
+    "travel-planning": {
+      "category": "生活服务",
+      "tags": [
+        "生活服务"
+      ],
+      "description": "行程规划：多城市路线、预算优化、打包清单、签证时间表",
+      "title": "travel-planning"
+    },
+    "globepilot-ai-agent-2": {
+      "category": "生活服务",
+      "tags": [
+        "生活服务"
+      ],
+      "description": "出境游全能助手：签证查询、货币换算、机场状态、当地活动、文化贴士，无需 API Key",
+      "title": "globepilot-ai-agent-2"
+    },
+    "flight-tracker": {
+      "category": "生活服务",
+      "tags": [
+        "生活服务"
+      ],
+      "description": "实时航班追踪，支持按地区、呼号、机场查询航班动态与时刻",
+      "title": "flight-tracker"
+    },
+    "aviationstack-flight-tracker": {
+      "category": "生活服务",
+      "tags": [
+        "生活服务"
+      ],
+      "description": "实时航班追踪：登机口、延误、飞行位置，类 Flighty 体验（需 API Key）",
+      "title": "aviationstack-flight-tracker"
+    },
+    "aviation-weather": {
+      "category": "生活服务",
+      "tags": [
+        "生活服务"
+      ],
+      "description": "获取 METAR/TAF 航空气象数据，飞行前天气简报，无需 API Key",
+      "title": "aviation-weather"
+    },
+    "qq-email": {
+      "category": "办公协同",
+      "tags": [
+        "办公协同"
+      ],
+      "title": "QQ邮箱",
+      "description": "QQ邮箱收发邮件（IMAP/SMTP），支持发信、收信、查看正文"
+    },
+    "stock-analysis": {
+      "category": "投资理财",
+      "tags": [
+        "投资理财"
+      ],
+      "title": "Stock Analysis",
+      "description": "股票与加密货币分析（8维评分、组合管理、趋势扫描、传闻探测）"
+    },
+    "us-stock-analysis": {
+      "category": "投资理财",
+      "tags": [
+        "投资理财"
+      ],
+      "title": "US Stock Analysis",
+      "description": "美股综合分析（基本面、技术面、估值、对比报告）"
+    },
+    "markitdown-skill": {
+      "category": "效率工具",
+      "tags": [
+        "效率工具"
+      ],
+      "title": "MarkItDown",
+      "description": "文档转 Markdown(PDF/Word/PPT/图片OCR/音频转写/网页)"
+    },
+    "libtv-skill": {
+      "category": "内容创作",
+      "tags": [
+        "内容创作"
+      ],
+      "title": "LibTV AI 创作",
+      "description": "通过 LibTV AI 平台生成和编辑图片/视频，支持文生图、文生视频、风格迁移等"
+    },
+    "novel": {
+      "category": "内容创作",
+      "tags": [
+        "内容创作"
+      ],
+      "title": "小说管理工具",
+      "description": "在终端管理小说数据(章节、角色、情节)，支持导出和搜索"
+    },
+    "ozon-1688-uploader": {
+      "category": "商业运营",
+      "tags": [
+        "商业运营"
+      ],
+      "title": "1688铺货Ozon",
+      "description": "将1688商品铺货到Ozon平台，自动类目映射、图片翻译和商品上架"
+    },
+    "taobao": {
+      "category": "生活服务",
+      "tags": [
+        "生活服务",
+        "商业运营"
+      ],
+      "title": "全网比价（买手）",
+      "description": "全网比价：淘宝/京东/拼多多多平台商品价格与优惠券查询"
+    },
+    "cn-ecommerce-search": {
+      "category": "OPC·一人公司",
+      "tags": [
+        "OPC·一人公司",
+        "生活服务",
+        "商业运营"
+      ],
+      "title": "中国电商搜索",
+      "description": "8 大中国电商平台商品搜索与跨平台商品信息查询，免 API Key"
+    },
+    "ecomseer": {
+      "category": "OPC·一人公司",
+      "tags": [
+        "OPC·一人公司",
+        "商业运营"
+      ],
+      "title": "EcomSeer TikTok 电商数据",
+      "description": "TikTok Shop 电商数据：商品/爆品/达人/店铺/广告全链路分析"
+    },
+    "shopify-admin-api": {
+      "category": "OPC·一人公司",
+      "tags": [
+        "OPC·一人公司",
+        "商业运营",
+        "开发工具"
+      ],
+      "title": "Shopify Admin API",
+      "description": "Shopify Admin REST API 完整封装：订单、商品、库存、客户全管理"
+    },
+    "ecommerce-copywriter": {
+      "category": "OPC·一人公司",
+      "tags": [
+        "OPC·一人公司",
+        "商业运营",
+        "内容创作"
+      ],
+      "title": "电商爆款文案生成器",
+      "description": "电商卖家的爆款文案生成：标题、详情页、卖点、促销一站搞定"
+    },
+    "tavily": {
+      "category": "信息资讯",
+      "tags": [
+        "信息资讯"
+      ],
+      "title": "Tavily AI Search",
+      "description": "AI优化的网络搜索引擎，支持智能摘要、领域过滤和深度研究"
+    },
+    "football-bayes": {
+      "category": "生活服务",
+      "tags": [
+        "生活服务"
+      ],
+      "title": "足球贝叶斯分析",
+      "description": "足球竞彩贝叶斯概率分析，融合战术周期化与xG数据"
+    },
+    "khazix-writer": {
+      "category": "OPC·一人公司",
+      "tags": [
+        "OPC·一人公司",
+        "内容创作"
+      ],
+      "title": "卡兹克公众号写作",
+      "description": "卡兹克风格的公众号长文写作，真诚有温度的AI内容创作"
+    },
+    "legal-logic-analysis": {
+      "category": "信息资讯",
+      "tags": [
+        "信息资讯"
+      ],
+      "title": "Legal Logic Analysis",
+      "description": "系统化法律推理分析（管辖权、事实、争点、适用法律、风险评估）"
+    },
+    "novel-writer": {
+      "category": "内容创作",
+      "tags": [
+        "内容创作"
+      ],
+      "title": "章节正文生成器",
+      "description": "根据大纲和角色档案生成章节正文，支持风格控制和温度调节"
+    },
+    "novel-writing": {
+      "category": "内容创作",
+      "tags": [
+        "内容创作"
+      ],
+      "title": "AI网文创作",
+      "description": "AI长篇网文创作，解决上下文丢失、文风不一致等7大痛点"
+    },
+    "open-novel-writing": {
+      "category": "内容创作",
+      "tags": [
+        "内容创作"
+      ],
+      "title": "开放小说创作助手",
+      "description": "中文长篇小说创作助手，支持从想法到成书的模块化全流程"
+    },
+    "westock-data": {
+      "category": "投资理财",
+      "tags": [
+        "投资理财"
+      ],
+      "title": "WeStock Data",
+      "description": "A股/港股/美股行情数据查询（K线、财报、资金流、技术指标、板块排行）"
+    },
+    "my-novel-writer": {
+      "category": "内容创作",
+      "tags": [
+        "内容创作"
+      ],
+      "title": "小说创作助手",
+      "description": "辅助创作长篇小说，支持人物设定、世界观管理和分章生成"
+    },
+    "stock-analyzer": {
+      "category": "投资理财",
+      "tags": [
+        "投资理财"
+      ],
+      "title": "股票综合分析器",
+      "description": "基于东方财富的全球股票三维分析（基本面、新闻面、资金面）"
+    },
+    "edgeone": {
+      "category": "网站部署",
+      "tags": [
+        "网站部署"
+      ],
+      "title": "EdgeOne HTML Deploy",
+      "description": "将 HTML 内容一键发布到 EdgeOne Pages 公网链接"
+    },
+    "html-deploy": {
+      "category": "网站部署",
+      "tags": [
+        "网站部署"
+      ],
+      "title": "HTML Deploy",
+      "description": "将单文件 HTML 快速发布为可分享公网链接"
+    },
+    "shippage": {
+      "category": "网站部署",
+      "tags": [
+        "网站部署"
+      ],
+      "title": "ShipPage",
+      "description": "将 HTML 或 Markdown 快速发布为公网网页"
+    },
+    "edgeone-pages-deploy": {
+      "category": "网站部署",
+      "tags": [
+        "网站部署"
+      ],
+      "title": "EdgeOne Pages Deploy",
+      "description": "将前端或全栈项目部署到腾讯 EdgeOne Pages"
+    },
+    "web-deploy-github": {
+      "category": "网站部署",
+      "tags": [
+        "网站部署"
+      ],
+      "title": "Web Deploy GitHub Pages",
+      "description": "创建并部署单页静态网站到 GitHub Pages"
+    },
+    "vercel-deploy": {
+      "category": "网站部署",
+      "tags": [
+        "网站部署"
+      ],
+      "title": "Vercel Deploy",
+      "description": "部署和管理 Vercel 项目、环境变量与日志"
+    },
+    "netlify-deploy": {
+      "category": "网站部署",
+      "tags": [
+        "网站部署"
+      ],
+      "title": "Netlify Deploy",
+      "description": "使用 Netlify CLI 部署和管理静态网站"
+    },
+    "web-deploy": {
+      "category": "网站部署",
+      "tags": [
+        "网站部署"
+      ],
+      "title": "Web Deploy",
+      "description": "跨 Vercel、Railway、GitHub Pages 的通用 Web 部署指南"
+    },
+    "static-app": {
+      "category": "网站部署",
+      "tags": [
+        "网站部署"
+      ],
+      "title": "Static App",
+      "description": "将静态网站或前端构建产物部署到 Static.app"
+    },
+    "github-pages-auto-deploy": {
+      "category": "网站部署",
+      "tags": [
+        "网站部署"
+      ],
+      "title": "GitHub Pages Auto Deploy",
+      "description": "配置 GitHub Pages 自动部署和自定义域名支持"
+    },
+    "cloudflare": {
+      "category": "网站部署",
+      "tags": [
+        "网站部署",
+        "开发工具"
+      ],
+      "title": "Cloudflare",
+      "description": "Cloudflare 平台开发与部署指南，覆盖 Workers、Pages、存储、AI 与安全"
+    },
+    "cloudflare-worker-builder": {
+      "category": "网站部署",
+      "tags": [
+        "网站部署",
+        "开发工具"
+      ],
+      "title": "Cloudflare Worker Builder",
+      "description": "脚手架并部署 Cloudflare Worker 全栈应用"
+    },
+    "landing-page-generator": {
+      "category": "网站部署",
+      "tags": [
+        "网站部署",
+        "内容创作"
+      ],
+      "title": "Landing Page Generator",
+      "description": "生成可直接部署的单页营销落地页"
+    },
+    "web-performance-audit": {
+      "category": "网站部署",
+      "tags": [
+        "网站部署",
+        "开发工具"
+      ],
+      "title": "Web Performance Audit",
+      "description": "部署后网站性能审计，检查核心指标与加载瓶颈"
+    },
+    "responsiveness-check": {
+      "category": "网站部署",
+      "tags": [
+        "网站部署",
+        "开发工具"
+      ],
+      "title": "Responsiveness Check",
+      "description": "多视口响应式检查，定位页面布局断点问题"
+    },
+    "product-showcase-site": {
+      "category": "网站部署",
+      "tags": [
+        "网站部署",
+        "商业运营",
+        "内容创作"
+      ],
+      "title": "Product Showcase Site",
+      "description": "为已有应用生成可部署的多页产品展示站"
+    },
+    "plan": {
+      "category": "开发工具",
+      "tags": [
+        "planning",
+        "plan"
+      ],
+      "title": "计划"
+    }
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "name": "小说管理工具",
+  "slug": "novel",
+  "version": "2.0.0",
+  "installedAt": 1780920318247,
+  "source": "marketplace",
+  "iconSource": "novel",
+  "preinstalledTemplate": true
+}

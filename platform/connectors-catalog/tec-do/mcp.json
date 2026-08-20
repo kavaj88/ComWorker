@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "tec-do": {
+      "type": "streamable_http",
+      "url": "https://tec-chi-external-skill-mcp.tec-do.cn/mcp",
+      "timeout": 30000,
+      "transport": "streamable_http"
+    }
+  }
+}

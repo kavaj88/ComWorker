@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "tyc-mcp": {
+      "url": "https://mcp.tianyancha.com/v1",
+      "headers": {
+        "Authorization": "${TIANYANCHA_API_KEY}"
+      },
+      "type": "streamable_http",
+      "timeout": 600000,
+      "transport": "streamable_http"
+    }
+  }
+}

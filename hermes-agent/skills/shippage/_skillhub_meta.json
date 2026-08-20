@@ -1,0 +1,9 @@
+{
+  "name": "ShipPage",
+  "slug": "shippage",
+  "version": "1.2.0",
+  "installedAt": 1780920318249,
+  "source": "marketplace",
+  "iconSource": "shippage",
+  "preinstalledTemplate": true
+}

@@ -1,0 +1,9 @@
+{
+  "name": "iMessage",
+  "slug": "imsg",
+  "version": "1.0.0",
+  "installedAt": 1780920318237,
+  "source": "marketplace",
+  "iconSource": "imsg",
+  "preinstalledTemplate": true
+}

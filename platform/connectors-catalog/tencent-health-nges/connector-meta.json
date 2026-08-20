@@ -1,0 +1,16 @@
+{
+  "name": "腾讯健康NGES",
+  "source": "tencent-health-nges",
+  "display_name": "腾讯健康NGES",
+  "description_zh": "腾讯健康NGES MCP服务，支持智能问数和合规审核等功能",
+  "description_en": "腾讯健康NGES MCP服务，支持智能问数和合规审核等功能",
+  "examples_zh": [
+    "帮我查看本月的拜访KPI达成情况",
+    "帮我对以下话术进行合规审核"
+  ],
+  "examples_en": [
+    "帮我查看本月的拜访KPI达成情况",
+    "帮我对以下话术进行合规审核"
+  ],
+  "auth": "none"
+}

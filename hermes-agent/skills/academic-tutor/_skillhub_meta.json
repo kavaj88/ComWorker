@@ -1,0 +1,9 @@
+{
+  "name": "学业导师",
+  "slug": "academic-tutor",
+  "version": "1.0.0",
+  "installedAt": 1780920318233,
+  "source": "marketplace",
+  "iconSource": "academic-tutor",
+  "preinstalledTemplate": true
+}

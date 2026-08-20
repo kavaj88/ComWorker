@@ -1,0 +1,18 @@
+{
+  "name": "Qq Mail",
+  "source": "qqmail",
+  "display_name": "QQ邮箱",
+  "description_zh": "通过 https://api.mail.qq.com/mcp 接入 Qq Mail 的 MCP 服务，由智能体调用其工具完成相关任务。",
+  "description_en": "通过 https://api.mail.qq.com/mcp 接入 Qq Mail 的 MCP 服务，由智能体调用其工具完成相关任务。",
+  "examples_zh": [
+    "用Qq Mail帮我查一下最新动态",
+    "通过Qq Mail执行一个常见任务",
+    "让Qq Mail总结它可用的能力"
+  ],
+  "examples_en": [
+    "用Qq Mail帮我查一下最新动态",
+    "通过Qq Mail执行一个常见任务",
+    "让Qq Mail总结它可用的能力"
+  ],
+  "auth": "oauth"
+}

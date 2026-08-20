@@ -1,0 +1,16 @@
+{
+  "mcpServers": {
+    "tencent_docs": {
+      "type": "streamable_http",
+      "url": "https://docs.qq.com/openapi/mcp",
+      "timeout": 600,
+      "transport": "streamable_http",
+      "oauth": {
+        "authorization_endpoint": "https://docs.qq.com/scenario/open-claw.html?authType=2",
+        "token_endpoint": "https://docs.qq.com/openapi/mcp/oauth/token",
+        "registration_endpoint": "https://docs.qq.com/openapi/mcp/oauth/register",
+        "scope": "docs:read docs:write docs:manage"
+      }
+    }
+  }
+}

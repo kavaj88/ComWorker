@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "tapd": {
+      "url": "https://websocket.tapd.cn/mcp/mcp",
+      "type": "streamable_http",
+      "transport": "streamable_http"
+    }
+  }
+}

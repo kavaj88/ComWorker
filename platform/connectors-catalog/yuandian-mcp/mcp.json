@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "yuandian-mcp": {
+      "type": "streamable_http",
+      "url": "https://open.chineselaw.com/mcp",
+      "transport": "streamable_http"
+    }
+  }
+}

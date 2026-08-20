@@ -1,0 +1,9 @@
+{
+  "name": "腾讯文档",
+  "slug": "tencent-docs",
+  "version": "1.0.31",
+  "installedAt": 1780920318226,
+  "source": "marketplace",
+  "iconSource": "tencent-docs",
+  "preinstalledTemplate": true
+}

@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "tencent-health-nges": {
+      "type": "streamable_http",
+      "url": "https://test.nges.qq.com/mcp/aggregate",
+      "transport": "streamable_http"
+    }
+  }
+}
