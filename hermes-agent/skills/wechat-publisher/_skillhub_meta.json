@@ -1,0 +1,9 @@
+{
+  "name": "Wechat Publisher",
+  "slug": "wechat-publisher",
+  "version": "0.1.0",
+  "installedAt": 1780920318231,
+  "source": "marketplace",
+  "iconSource": "wechat-publisher",
+  "preinstalledTemplate": true
+}

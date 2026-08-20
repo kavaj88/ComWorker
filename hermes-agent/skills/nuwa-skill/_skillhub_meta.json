@@ -1,0 +1,9 @@
+{
+  "name": "女娲",
+  "slug": "nuwa-skill",
+  "version": "1.0.0",
+  "installedAt": 1780920318236,
+  "source": "marketplace",
+  "iconSource": "nuwa-skill",
+  "preinstalledTemplate": true
+}

@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "pkulaw": {
+      "type": "streamable_http",
+      "url": "https://apim-gateway.pkulaw.com/mcp-law-agg/1.0.0/mcp",
+      "timeout": 60000,
+      "transport": "streamable_http"
+    }
+  }
+}

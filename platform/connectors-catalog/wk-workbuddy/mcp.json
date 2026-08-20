@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "wk-workbuddy": {
+      "url": "https://mcp.wkinfo.com.cn/mcp-servers/integrated/",
+      "type": "streamable_http",
+      "timeout": 60000,
+      "transport": "streamable_http"
+    }
+  }
+}

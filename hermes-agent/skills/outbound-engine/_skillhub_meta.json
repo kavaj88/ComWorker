@@ -1,0 +1,9 @@
+{
+  "name": "outbound-engine",
+  "slug": "outbound-engine",
+  "version": "1.0.0",
+  "installedAt": 1780920318244,
+  "source": "marketplace",
+  "iconSource": "outbound-engine",
+  "preinstalledTemplate": true
+}

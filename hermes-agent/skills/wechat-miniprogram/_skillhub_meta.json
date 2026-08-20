@@ -1,0 +1,9 @@
+{
+  "name": "微信小程序开发框架",
+  "slug": "wechat-miniprogram",
+  "version": "1.0.0",
+  "installedAt": 1780920318231,
+  "source": "marketplace",
+  "iconSource": "wechat-miniprogram",
+  "preinstalledTemplate": true
+}

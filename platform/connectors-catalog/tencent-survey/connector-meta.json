@@ -1,0 +1,18 @@
+{
+  "name": "Tencent Survey",
+  "source": "tencent-survey",
+  "display_name": "腾讯问卷",
+  "description_zh": "通过 https://wj.qq.com/api/v2/mcp 接入 Tencent Survey 的 MCP 服务，由智能体调用其工具完成相关任务。",
+  "description_en": "通过 https://wj.qq.com/api/v2/mcp 接入 Tencent Survey 的 MCP 服务，由智能体调用其工具完成相关任务。",
+  "examples_zh": [
+    "用Tencent Survey帮我查一下最新动态",
+    "通过Tencent Survey执行一个常见任务",
+    "让Tencent Survey总结它可用的能力"
+  ],
+  "examples_en": [
+    "用Tencent Survey帮我查一下最新动态",
+    "通过Tencent Survey执行一个常见任务",
+    "让Tencent Survey总结它可用的能力"
+  ],
+  "auth": "none"
+}

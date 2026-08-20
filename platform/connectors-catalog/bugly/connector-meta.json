@@ -1,0 +1,18 @@
+{
+  "name": "bugly质量概览",
+  "source": "bugly",
+  "display_name": "bugly质量概览",
+  "description_zh": "查看产品的质量概览 包括崩溃率 anr率 foom（oom）率 启动耗时",
+  "description_en": "查看产品的质量概览 包括崩溃率 anr率 foom（oom）率 启动耗时",
+  "examples_zh": [
+    "查看应用的大盘质量概览",
+    "查看应用的版本质量概览",
+    "查看应用的今天质量概览"
+  ],
+  "examples_en": [
+    "查看应用的大盘质量概览",
+    "查看应用的版本质量概览",
+    "查看应用的今天质量概览"
+  ],
+  "auth": "none"
+}

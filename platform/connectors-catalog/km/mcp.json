@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "km": {
+      "url": "https://prod.mcp.it.woa.com/paasfront_km-pro_woa_com/mcp",
+      "type": "streamable_http",
+      "transport": "streamable_http"
+    }
+  }
+}

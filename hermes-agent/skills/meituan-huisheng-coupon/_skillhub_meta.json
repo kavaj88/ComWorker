@@ -1,0 +1,9 @@
+{
+  "name": "美团惠省优惠助手",
+  "slug": "meituan-huisheng-coupon",
+  "version": "1.0.0",
+  "installedAt": 1780920318230,
+  "source": "marketplace",
+  "iconSource": "meituan-huisheng-coupon",
+  "preinstalledTemplate": true
+}

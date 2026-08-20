@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "qingflow": {
+      "type": "streamable_http",
+      "url": "https://mcp.qingflow.com/mcp",
+      "headers": {
+        "Authorization": "Bearer ${QINGFLOW_TOKEN}"
+      },
+      "timeout": 30000,
+      "transport": "streamable_http"
+    }
+  }
+}

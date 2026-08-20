@@ -1,0 +1,18 @@
+{
+  "name": "Cnb Woa",
+  "source": "cnb-woa",
+  "display_name": "CNB（司内版）",
+  "description_zh": "Cnb Woa 原生 CLI 连接器。安装后需在容器内完成登录授权，由中继代理与平台转发回调。",
+  "description_en": "Cnb Woa 原生 CLI 连接器。安装后需在容器内完成登录授权，由中继代理与平台转发回调。",
+  "examples_zh": [
+    "用Cnb Woa帮我查一下最新动态",
+    "通过Cnb Woa执行一个常见任务",
+    "让Cnb Woa总结它可用的能力"
+  ],
+  "examples_en": [
+    "用Cnb Woa帮我查一下最新动态",
+    "通过Cnb Woa执行一个常见任务",
+    "让Cnb Woa总结它可用的能力"
+  ],
+  "auth": "cli"
+}

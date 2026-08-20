@@ -1,0 +1,9 @@
+{
+  "name": "语音转文字API",
+  "slug": "openai-whisper-api",
+  "version": "1.0.0",
+  "installedAt": 1780920318240,
+  "source": "marketplace",
+  "iconSource": "openai-whisper-api",
+  "preinstalledTemplate": true
+}

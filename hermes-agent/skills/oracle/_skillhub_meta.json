@@ -1,0 +1,9 @@
+{
+  "name": "AI交叉审查",
+  "slug": "oracle",
+  "version": "1.0.1",
+  "installedAt": 1780920318243,
+  "source": "marketplace",
+  "iconSource": "oracle",
+  "preinstalledTemplate": true
+}

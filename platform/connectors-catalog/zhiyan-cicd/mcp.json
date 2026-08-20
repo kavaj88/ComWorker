@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "zhiyan-cicd": {
+      "url": "https://mcpgw.knot.woa.com/zhiyan/delivery",
+      "transportType": "streamable-http",
+      "timeout": 60,
+      "type": "streamable_http",
+      "transport": "streamable_http"
+    }
+  }
+}

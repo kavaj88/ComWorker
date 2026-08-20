@@ -1,0 +1,9 @@
+{
+  "name": "ClawBrowser",
+  "slug": "clawbrowser",
+  "version": "0.1.1",
+  "installedAt": 1780920318242,
+  "source": "marketplace",
+  "iconSource": "clawbrowser",
+  "preinstalledTemplate": true
+}

@@ -1,0 +1,9 @@
+{
+  "name": "tencentmap-lbs-skill",
+  "slug": "tencentmap-lbs-skill",
+  "version": "1.0.1",
+  "installedAt": 1780920318231,
+  "source": "marketplace",
+  "iconSource": "tencentmap-lbs-skill",
+  "preinstalledTemplate": true
+}

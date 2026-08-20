@@ -1,0 +1,18 @@
+{
+  "name": "KM",
+  "source": "km",
+  "display_name": "KM",
+  "description_zh": "KM官方MCP，发现腾讯精彩。",
+  "description_en": "KM官方MCP，发现腾讯精彩。",
+  "examples_zh": [
+    "KM今天的热文有啥？",
+    "KM最新文章有啥？",
+    "我最近参加的KM活动有什么？"
+  ],
+  "examples_en": [
+    "KM今天的热文有啥？",
+    "KM最新文章有啥？",
+    "我最近参加的KM活动有什么？"
+  ],
+  "auth": "none"
+}

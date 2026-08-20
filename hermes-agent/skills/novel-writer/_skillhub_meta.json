@@ -1,0 +1,9 @@
+{
+  "name": "章节正文生成器",
+  "slug": "novel-writer",
+  "version": "1.0.1",
+  "installedAt": 1780920318248,
+  "source": "marketplace",
+  "iconSource": "novel-writer",
+  "preinstalledTemplate": true
+}

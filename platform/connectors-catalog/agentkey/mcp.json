@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "agentkey": {
+      "type": "streamable_http",
+      "url": "https://api.agentkey.app/workbuddy/v1/mcp",
+      "timeout": 30000,
+      "transport": "streamable_http"
+    }
+  }
+}

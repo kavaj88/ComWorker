@@ -1,0 +1,9 @@
+{
+  "name": "Web Scraper",
+  "slug": "web-scraper",
+  "version": "0.1.1",
+  "installedAt": 1780920318242,
+  "source": "marketplace",
+  "iconSource": "web-scraper",
+  "preinstalledTemplate": true
+}

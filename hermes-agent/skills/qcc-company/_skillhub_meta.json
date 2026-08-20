@@ -1,0 +1,9 @@
+{
+  "name": "企查查（工商信息）",
+  "slug": "qcc-company",
+  "version": "1.0.0",
+  "installedAt": 1780920318232,
+  "source": "marketplace",
+  "iconSource": "qcc-company",
+  "preinstalledTemplate": true
+}

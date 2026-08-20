@@ -1,0 +1,9 @@
+{
+  "name": "GitHub热门项目",
+  "slug": "github-trending-cn",
+  "version": "2.0.0",
+  "installedAt": 1780920318238,
+  "source": "marketplace",
+  "iconSource": "github-trending-cn",
+  "preinstalledTemplate": true
+}

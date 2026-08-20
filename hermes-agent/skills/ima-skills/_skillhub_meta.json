@@ -1,0 +1,9 @@
+{
+  "name": "腾讯ima",
+  "slug": "ima-skills",
+  "version": "1.1.7",
+  "installedAt": 1780920318227,
+  "source": "marketplace",
+  "iconSource": "ima-skills",
+  "preinstalledTemplate": true
+}

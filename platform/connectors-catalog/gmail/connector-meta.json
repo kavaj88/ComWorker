@@ -1,0 +1,18 @@
+{
+  "name": "Gmail",
+  "source": "gmail",
+  "display_name": "Gmail",
+  "description_zh": "Gmail 连接器。",
+  "description_en": "Gmail 连接器。",
+  "examples_zh": [
+    "用Gmail帮我查一下最新动态",
+    "通过Gmail执行一个常见任务",
+    "让Gmail总结它可用的能力"
+  ],
+  "examples_en": [
+    "用Gmail帮我查一下最新动态",
+    "通过Gmail执行一个常见任务",
+    "让Gmail总结它可用的能力"
+  ],
+  "auth": "api_key"
+}

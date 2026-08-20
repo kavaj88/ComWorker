@@ -1,0 +1,9 @@
+{
+  "name": "小说创作助手",
+  "slug": "my-novel-writer",
+  "version": "1.0.0",
+  "installedAt": 1780920318248,
+  "source": "marketplace",
+  "iconSource": "my-novel-writer",
+  "preinstalledTemplate": true
+}

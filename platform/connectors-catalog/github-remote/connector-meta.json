@@ -1,0 +1,18 @@
+{
+  "name": "Github Remote",
+  "source": "github-remote",
+  "display_name": "Github Remote",
+  "description_zh": "通过 https://api.githubcopilot.com/mcp/ 接入 Github Remote 的 MCP 服务，由智能体调用其工具完成相关任务。",
+  "description_en": "通过 https://api.githubcopilot.com/mcp/ 接入 Github Remote 的 MCP 服务，由智能体调用其工具完成相关任务。",
+  "examples_zh": [
+    "用Github Remote帮我查一下最新动态",
+    "通过Github Remote执行一个常见任务",
+    "让Github Remote总结它可用的能力"
+  ],
+  "examples_en": [
+    "用Github Remote帮我查一下最新动态",
+    "通过Github Remote执行一个常见任务",
+    "让Github Remote总结它可用的能力"
+  ],
+  "auth": "none"
+}

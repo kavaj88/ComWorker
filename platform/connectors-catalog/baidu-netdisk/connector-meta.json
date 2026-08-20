@@ -1,0 +1,18 @@
+{
+  "name": "Baidu Netdisk",
+  "source": "baidu-netdisk",
+  "display_name": "百度网盘",
+  "description_zh": "通过 https://mcp-pan.baidu.com/sse 接入 Baidu Netdisk 的 MCP 服务，由智能体调用其工具完成相关任务。",
+  "description_en": "通过 https://mcp-pan.baidu.com/sse 接入 Baidu Netdisk 的 MCP 服务，由智能体调用其工具完成相关任务。",
+  "examples_zh": [
+    "用Baidu Netdisk帮我查一下最新动态",
+    "通过Baidu Netdisk执行一个常见任务",
+    "让Baidu Netdisk总结它可用的能力"
+  ],
+  "examples_en": [
+    "用Baidu Netdisk帮我查一下最新动态",
+    "通过Baidu Netdisk执行一个常见任务",
+    "让Baidu Netdisk总结它可用的能力"
+  ],
+  "auth": "none"
+}

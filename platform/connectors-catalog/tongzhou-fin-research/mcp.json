@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "tongzhou-fin-research": {
+      "type": "streamable_http",
+      "url": "https://mcp-gateway.textmind-gz.com/mcp/tongzhou-research",
+      "timeout": 180000,
+      "transport": "streamable_http"
+    }
+  }
+}

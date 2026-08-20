@@ -1,0 +1,18 @@
+{
+  "name": "Region Insight",
+  "source": "region-insight",
+  "display_name": "区域洞察",
+  "description_zh": "区域洞察提供 POI 定位、围栏内 POI 查询与聚合能力。",
+  "description_en": "区域洞察提供 POI 定位、围栏内 POI 查询与聚合能力。",
+  "examples_zh": [
+    "查找上海妇女用品商店并返回 GCJ-02 坐标",
+    "统计成都建设路邻里生活广场周边 1000 米内不同分类的 POI 数量",
+    "查询指定圆形区域内的餐饮 POI 列表"
+  ],
+  "examples_en": [
+    "查找上海妇女用品商店并返回 GCJ-02 坐标",
+    "统计成都建设路邻里生活广场周边 1000 米内不同分类的 POI 数量",
+    "查询指定圆形区域内的餐饮 POI 列表"
+  ],
+  "auth": "api_key"
+}

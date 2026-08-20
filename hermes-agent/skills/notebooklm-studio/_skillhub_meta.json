@@ -1,0 +1,9 @@
+{
+  "name": "NotebookLM Studio",
+  "slug": "notebooklm-studio",
+  "version": "2.1.3",
+  "installedAt": 1780920318235,
+  "source": "marketplace",
+  "iconSource": "notebooklm-studio",
+  "preinstalledTemplate": true
+}

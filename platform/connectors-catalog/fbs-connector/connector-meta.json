@@ -1,0 +1,20 @@
+{
+  "name": "福帮手",
+  "source": "fbs-connector",
+  "display_name": "福帮手",
+  "description_zh": "福帮手人机协同连接器：面向 WorkBuddy 的身份识别、场景包查询、首值与继续使用记录、乐包状态确认和超级合伙人交接。",
+  "description_en": "福帮手人机协同连接器：面向 WorkBuddy 的身份识别、场景包查询、首值与继续使用记录、乐包状态确认和超级合伙人交接。",
+  "examples_zh": [
+    "先确认我当前的福帮手身份和最稳妥的下一步，再继续推进。",
+    "根据 skill_whoami 返回的场景包读取内容，并产出一张首值执行卡。",
+    "在同一个 binding 上记录 first_value_completed 或 continued_use_completed。",
+    "先查询乐包状态，再判断是否适合领取或兑换。"
+  ],
+  "examples_en": [
+    "先确认我当前的福帮手身份和最稳妥的下一步，再继续推进。",
+    "根据 skill_whoami 返回的场景包读取内容，并产出一张首值执行卡。",
+    "在同一个 binding 上记录 first_value_completed 或 continued_use_completed。",
+    "先查询乐包状态，再判断是否适合领取或兑换。"
+  ],
+  "auth": "none"
+}

@@ -1,0 +1,18 @@
+{
+  "name": "Wecom",
+  "source": "wecom",
+  "display_name": "企业微信",
+  "description_zh": "Wecom 原生 CLI 连接器。安装后需在容器内完成登录授权，由中继代理与平台转发回调。",
+  "description_en": "Wecom 原生 CLI 连接器。安装后需在容器内完成登录授权，由中继代理与平台转发回调。",
+  "examples_zh": [
+    "用Wecom帮我查一下最新动态",
+    "通过Wecom执行一个常见任务",
+    "让Wecom总结它可用的能力"
+  ],
+  "examples_en": [
+    "用Wecom帮我查一下最新动态",
+    "通过Wecom执行一个常见任务",
+    "让Wecom总结它可用的能力"
+  ],
+  "auth": "cli"
+}

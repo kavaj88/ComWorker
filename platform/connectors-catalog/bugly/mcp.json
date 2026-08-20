@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "bugly": {
+      "type": "streamable_http",
+      "url": "https://bugly.mcp.it.woa.com",
+      "timeout": 30000,
+      "transport": "streamable_http"
+    }
+  }
+}

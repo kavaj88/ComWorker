@@ -1,0 +1,9 @@
+{
+  "name": "zoom-out",
+  "slug": "zoom-out",
+  "version": "1.0.0",
+  "installedAt": 1780920318234,
+  "source": "marketplace",
+  "iconSource": "zoom-out",
+  "preinstalledTemplate": true
+}

@@ -1,0 +1,9 @@
+{
+  "name": "caveman",
+  "slug": "caveman",
+  "version": "1.0.0",
+  "installedAt": 1780920318234,
+  "source": "marketplace",
+  "iconSource": "caveman",
+  "preinstalledTemplate": true
+}

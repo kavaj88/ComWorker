@@ -1,0 +1,9 @@
+{
+  "name": "微信公众号文章发布",
+  "slug": "wechat-article-pro",
+  "version": "1.0.0",
+  "installedAt": 1780920318231,
+  "source": "marketplace",
+  "iconSource": "wechat-article-pro",
+  "preinstalledTemplate": true
+}

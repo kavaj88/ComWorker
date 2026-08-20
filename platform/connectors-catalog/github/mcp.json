@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "github": {
+      "timeout": 600,
+      "url": "https://api.githubcopilot.com/mcp/",
+      "type": "streamable_http",
+      "transport": "streamable_http"
+    }
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "name": "MCP管理器",
+  "slug": "mcporter",
+  "version": "1.0.0",
+  "installedAt": 1780920318243,
+  "source": "marketplace",
+  "iconSource": "mcporter",
+  "preinstalledTemplate": true
+}

@@ -1,0 +1,22 @@
+{
+  "name": "CNB",
+  "source": "cnb-api",
+  "display_name": "CNB",
+  "description_zh": "通过自然语言管理 CNB 平台：仓库、Issue、PR、流水线、制品库等操作。",
+  "description_en": "通过自然语言管理 CNB 平台：仓库、Issue、PR、流水线、制品库等操作。",
+  "examples_zh": [
+    "获取当前 Issue 的详情",
+    "在当前 PR 上发表评论：已完成代码评审",
+    "查看当前 PR 的 CI 构建状态",
+    "给当前 Issue 添加 bug 标签",
+    "列出当前 PR 的变更文件"
+  ],
+  "examples_en": [
+    "获取当前 Issue 的详情",
+    "在当前 PR 上发表评论：已完成代码评审",
+    "查看当前 PR 的 CI 构建状态",
+    "给当前 Issue 添加 bug 标签",
+    "列出当前 PR 的变更文件"
+  ],
+  "auth": "cli"
+}

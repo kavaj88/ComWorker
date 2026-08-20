@@ -1,0 +1,9 @@
+{
+  "name": "轻量PDF编辑器",
+  "slug": "nano-pdf",
+  "version": "1.0.0",
+  "installedAt": 1780920318235,
+  "source": "marketplace",
+  "iconSource": "nano-pdf",
+  "preinstalledTemplate": true
+}

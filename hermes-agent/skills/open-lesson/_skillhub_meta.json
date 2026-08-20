@@ -1,0 +1,9 @@
+{
+  "name": "openLesson",
+  "slug": "open-lesson",
+  "version": "1.0.2",
+  "installedAt": 1780920318236,
+  "source": "marketplace",
+  "iconSource": "open-lesson",
+  "preinstalledTemplate": true
+}

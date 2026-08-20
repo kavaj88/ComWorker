@@ -1,0 +1,18 @@
+{
+  "name": "Github",
+  "source": "github",
+  "display_name": "Github",
+  "description_zh": "通过 https://api.githubcopilot.com/mcp/ 接入 Github 的 MCP 服务，由智能体调用其工具完成相关任务。",
+  "description_en": "通过 https://api.githubcopilot.com/mcp/ 接入 Github 的 MCP 服务，由智能体调用其工具完成相关任务。",
+  "examples_zh": [
+    "用Github帮我查一下最新动态",
+    "通过Github执行一个常见任务",
+    "让Github总结它可用的能力"
+  ],
+  "examples_en": [
+    "用Github帮我查一下最新动态",
+    "通过Github执行一个常见任务",
+    "让Github总结它可用的能力"
+  ],
+  "auth": "none"
+}

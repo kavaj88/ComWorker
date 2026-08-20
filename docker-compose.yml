@@ -1,0 +1,200 @@
+# ComWorker Multi-Tenant Deployment
+#
+# Architecture:
+#   frontend (public:3000) → gateway (internal+external) → per-user containers (internal only)
+#                                  ↕
+#                            postgres (internal)
+#
+# User containers are created dynamically by the gateway via Docker API,
+# NOT defined in this compose file.
+
+name: comworker
+
+services:
+  postgres:
+    container_name: comworker-postgres
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: comworker
+      POSTGRES_PASSWORD: comworker
+      POSTGRES_DB: comworker_platform
+    ports:
+      - "15432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks:
+      - comworker-internal
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U comworker -d comworker_platform"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  gateway:
+    container_name: comworker-gateway
+    build:
+      context: ./platform
+      args:
+        APT_DEBIAN_MIRROR: ${APT_DEBIAN_MIRROR:-http://mirrors.ustc.edu.cn/debian}
+        APT_SECURITY_MIRROR: ${APT_SECURITY_MIRROR:-http://mirrors.ustc.edu.cn/debian-security}
+        PIP_INDEX_URL: ${PIP_INDEX_URL:-https://pypi.org/simple}
+    ports:
+      - "8080:8080"
+    secrets:
+      - jwt_secret
+      - model_keys_master_key
+      - admin_password
+    environment:
+      PLATFORM_DATABASE_URL: postgresql+asyncpg://comworker:comworker@postgres:5432/comworker_platform
+
+      # JWT signing secret. Resolution order (see app.security):
+      #   1) /run/secrets/jwt_secret (docker secret — recommended)
+      #   2) PLATFORM_JWT_SECRET env var below
+      #   3) persisted at /data/.jwt_secret
+      #   4) auto-generated on first boot, persisted to /data/.jwt_secret
+      # NEVER use a shared default — that would let every customer sign
+      # tokens for every other customer's installation.
+      PLATFORM_JWT_SECRET: ${JWT_SECRET:-}
+      PLATFORM_JWT_SECRET_FILE: ${JWT_SECRET_FILE:-/data/.jwt_secret}
+
+      # Master key for encrypting LLM provider API keys at rest in the DB.
+      # Same resolution order as JWT_SECRET.
+      PLATFORM_MODEL_KEYS_MASTER_KEY: ${MODEL_KEYS_MASTER_KEY:-}
+      PLATFORM_MODEL_KEYS_MASTER_KEY_FILE: ${MODEL_KEYS_MASTER_KEY_FILE:-/data/.model_keys_master_key}
+
+      # Initial administrator account. If PLATFORM_ADMIN_PASSWORD is left
+      # blank, a strong random password is generated at first boot and
+      # printed in the startup banner — log in and rotate it immediately.
+      PLATFORM_ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
+      PLATFORM_ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
+
+      # LLM API Keys are intentionally NOT seeded here in the empty product
+      # build. Operators add them via the admin UI at /models after first
+      # login, or set them here to pre-seed at startup.
+      PLATFORM_ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      PLATFORM_OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      PLATFORM_OPENAI_API_BASE: ${OPENAI_API_BASE:-}
+      PLATFORM_DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
+      PLATFORM_OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      PLATFORM_DASHSCOPE_API_KEY: ${DASHSCOPE_API_KEY:-}
+      PLATFORM_MINIMAX_API_KEY: ${MINIMAX_API_KEY:-}
+      PLATFORM_MINIMAX_API_BASE: ${MINIMAX_API_BASE:-}
+      PLATFORM_AIHUBMIX_API_KEY: ${AIHUBMIX_API_KEY:-}
+      PLATFORM_EVOLINK_API_KEY: ${EVOLINK_API_KEY:-}
+      PLATFORM_MOONSHOT_API_KEY: ${MOONSHOT_API_KEY:-}
+      PLATFORM_KIMI_API_KEY: ${KIMI_API_KEY:-}
+      PLATFORM_ZHIPU_API_KEY: ${ZHIPU_API_KEY:-}
+      PLATFORM_DOUBAO_API_KEY: ${DOUBAO_API_KEY:-}
+      PLATFORM_TAVILY_API_KEY: ${TAVILY_API_KEY:-}
+
+      # Self-hosted vLLM
+      PLATFORM_HOSTED_VLLM_API_KEY: ${HOSTED_VLLM_API_KEY:-}
+      PLATFORM_HOSTED_VLLM_API_BASE: ${HOSTED_VLLM_API_BASE:-}
+
+      PLATFORM_DEFAULT_MODEL: ${DEFAULT_MODEL:-openai/glm-5.1}
+      PLATFORM_COMWORKER_IMAGE: ${PLATFORM_COMWORKER_IMAGE:-comworker:latest}
+      PLATFORM_HERMES_IMAGE: ${PLATFORM_HERMES_IMAGE:-comworker-hermes-agent:latest}
+      PLATFORM_DEDICATED_RUNTIME_BACKEND: ${PLATFORM_DEDICATED_RUNTIME_BACKEND:-hermes}
+      PLATFORM_HERMES_CONNECT_RETRIES: ${PLATFORM_HERMES_CONNECT_RETRIES:-60}
+      PLATFORM_HERMES_RETRY_DELAY_SECONDS: ${PLATFORM_HERMES_RETRY_DELAY_SECONDS:-0.5}
+      PLATFORM_HERMES_API_TOOLSETS: ${PLATFORM_HERMES_API_TOOLSETS:-full}
+      PLATFORM_HERMES_REASONING_EFFORT: ${PLATFORM_HERMES_REASONING_EFFORT:-none}
+      PLATFORM_HERMES_SERVICE_TIER: ${PLATFORM_HERMES_SERVICE_TIER:-}
+      PLATFORM_MINIMAX_M27_USE_HIGHSPEED: ${MINIMAX_M27_USE_HIGHSPEED:-true}
+      PLATFORM_DEDICATED_HERMES_URL: ${PLATFORM_DEDICATED_HERMES_URL:-}
+      PLATFORM_DEV_COMWORKER_URL: ${PLATFORM_DEV_COMWORKER_URL:-}
+      PLATFORM_CONTAINER_NETWORK: comworker-internal
+      PLATFORM_SHARED_COMWORKER_ENABLED: ${PLATFORM_SHARED_COMWORKER_ENABLED:-true}
+      PLATFORM_SHARED_RUNTIME_BACKEND: ${PLATFORM_SHARED_RUNTIME_BACKEND:-hermes}
+      PLATFORM_SHARED_COMWORKER_URL: ${PLATFORM_SHARED_COMWORKER_URL:-http://shared-comworker:8080}
+      PLATFORM_SHARED_HERMES_URL: ${PLATFORM_SHARED_HERMES_URL:-http://shared-comworker:8080}
+      PLATFORM_SHARED_HERMES_API_KEY: ${PLATFORM_SHARED_HERMES_API_KEY:-dev-hermes-bridge-key}
+      PLATFORM_SHARED_COMWORKER_SYSTEM_TOKEN: ${PLATFORM_SHARED_COMWORKER_SYSTEM_TOKEN:-shared-comworker-system-token}
+      PLATFORM_CONTAINER_TZ: ${CONTAINER_TZ:-Asia/Shanghai}
+      PLATFORM_CONTAINER_MEMORY_LIMIT: ${PLATFORM_CONTAINER_MEMORY_LIMIT:-2g}
+      PLATFORM_CONTAINER_SHM_SIZE: ${PLATFORM_CONTAINER_SHM_SIZE:-1g}
+      PLATFORM_TRAINING_TRACE_ENABLED: ${PLATFORM_TRAINING_TRACE_ENABLED:-false}
+      PLATFORM_TRAINING_TRACE_INGEST_ENABLED: ${PLATFORM_TRAINING_TRACE_INGEST_ENABLED:-false}
+      PLATFORM_TRAINING_TRACE_INGEST_TOKEN: ${PLATFORM_TRAINING_TRACE_INGEST_TOKEN:-}
+      PLATFORM_TRAINING_TRACE_DIR: ${PLATFORM_TRAINING_TRACE_DIR:-/app/.hermes/training_traces}
+      PLATFORM_TRAINING_TRACE_HASH_SALT: ${PLATFORM_TRAINING_TRACE_HASH_SALT:-}
+      PLATFORM_SKILLS_DIR: /app/platform_skills
+      # 内置技能源目录（管理员代装内置技能时读取），挂载宿主 hermes-agent/skills
+      BUILTIN_SKILLS_DIR: /app/hermes_skills
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock  # Docker API access for container management
+      - ./.hermes/benchmarks:/app/.hermes/benchmarks:ro
+      - ./.hermes/training_traces:/app/.hermes/training_traces
+      - ./.hermes/platform_skills:/app/platform_skills
+      - ./hermes-agent/skills:/app/hermes_skills:ro  # 管理员代装内置技能的来源
+      # Auto-generated secrets (jwt / master key) persist here so that
+      # restarting the container does not invalidate every JWT.
+      - comworker-data:/data
+#      - ./deploy_copy/ssh:/root/.ssh:ro  # SSH key for private Git repos (skills marketplace)
+    networks:
+      comworker-internal:   # talk to postgres + user containers
+      comworker-external:   # accept traffic from frontend / public
+        aliases:
+          - backend         # 非保留别名，避免 docker 内置 gateway 主机名冲突导致间歇 ECONNREFUSED
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  manage-front:
+    container_name: comworker-manage
+    build: ./manage_front
+    image: comworker-manage
+    ports:
+      - "3081:3000"
+    environment:
+      - API_URL=http://backend:8080
+    networks:
+      - comworker-external
+    depends_on:
+      - gateway
+
+  cca-front-dev:
+    container_name: comworker-cca-front-dev
+    image: node:22-alpine
+    working_dir: /app
+    volumes:
+      - ./cca-front:/app
+      - node_modules_cache:/app/node_modules
+    command: sh -c "npm install && npm run dev -- --host 0.0.0.0 --port 5174"
+    ports:
+      - "5174:5174"
+    networks:
+      - comworker-external
+    depends_on:
+      - gateway
+    environment:
+      - VITE_API_URL=http://gateway:8080
+
+networks:
+  comworker-internal:
+    name: comworker-internal    # explicit name — prevents Compose project-name prefix
+    driver: bridge
+    internal: false  # allow internet access for user containers to download tools
+  comworker-external:
+    name: comworker-external
+    driver: bridge
+
+volumes:
+  pgdata:
+  node_modules_cache:
+  # Persistent storage for auto-generated secrets. Mounted into the gateway
+  # container at /data so JWT_SECRET / MODEL_KEYS_MASTER_KEY survive restarts.
+  comworker-data:
+
+# Docker secrets for the gateway. By default compose uses file-based
+# secrets from ./secrets/ (created on demand by tools/gen_secrets.sh),
+# but operators can replace any of these with a real `docker secret create`
+# value without changing the compose file — just drop the matching file
+# from ./secrets/ and create the secret under the same name.
+secrets:
+  jwt_secret:
+    file: ./secrets/jwt_secret
+  model_keys_master_key:
+    file: ./secrets/model_keys_master_key
+  admin_password:
+    file: ./secrets/admin_password

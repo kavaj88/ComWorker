@@ -1,0 +1,9 @@
+{
+  "name": "技能创建指南",
+  "slug": "skill-creator",
+  "version": "0.1.0",
+  "installedAt": 1780920318243,
+  "source": "marketplace",
+  "iconSource": "skill-creator",
+  "preinstalledTemplate": true
+}

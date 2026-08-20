@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "ima": {
+      "type": "streamable_http",
+      "url": "https://ima.qq.com/mcp",
+      "timeout": 20000,
+      "transport": "streamable_http",
+      "headers": {
+        "Authorization": "Bearer ${IMA_TOKEN}"
+      }
+    }
+  }
+}

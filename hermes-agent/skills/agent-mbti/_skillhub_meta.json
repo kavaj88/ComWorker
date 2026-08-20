@@ -1,0 +1,9 @@
+{
+  "name": "MBTI人格诊断",
+  "slug": "agent-mbti",
+  "version": "0.1.1",
+  "installedAt": 1780920318245,
+  "source": "marketplace",
+  "iconSource": "agent-mbti",
+  "preinstalledTemplate": true
+}

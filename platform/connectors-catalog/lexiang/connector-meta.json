@@ -1,0 +1,18 @@
+{
+  "name": "Lexiang",
+  "source": "lexiang",
+  "display_name": "乐享知识库",
+  "description_zh": "通过 https://mcp.lexiang-app.com/mcp 接入 Lexiang 的 MCP 服务，由智能体调用其工具完成相关任务。",
+  "description_en": "通过 https://mcp.lexiang-app.com/mcp 接入 Lexiang 的 MCP 服务，由智能体调用其工具完成相关任务。",
+  "examples_zh": [
+    "用Lexiang帮我查一下最新动态",
+    "通过Lexiang执行一个常见任务",
+    "让Lexiang总结它可用的能力"
+  ],
+  "examples_en": [
+    "用Lexiang帮我查一下最新动态",
+    "通过Lexiang执行一个常见任务",
+    "让Lexiang总结它可用的能力"
+  ],
+  "auth": "oauth"
+}

@@ -1,0 +1,18 @@
+{
+  "name": "Jira",
+  "source": "jira",
+  "display_name": "Jira",
+  "description_zh": "Jira 连接器。",
+  "description_en": "Jira 连接器。",
+  "examples_zh": [
+    "用Jira帮我查一下最新动态",
+    "通过Jira执行一个常见任务",
+    "让Jira总结它可用的能力"
+  ],
+  "examples_en": [
+    "用Jira帮我查一下最新动态",
+    "通过Jira执行一个常见任务",
+    "让Jira总结它可用的能力"
+  ],
+  "auth": "api_key"
+}

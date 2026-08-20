@@ -1,0 +1,22 @@
+{
+  "name": "Gongfeng",
+  "source": "gongfeng-woa",
+  "display_name": "Gongfeng",
+  "description_zh": "工蜂 API 的 MCP 服务器，支持仓库管理、文件操作等功能。",
+  "description_en": "工蜂 API 的 MCP 服务器，支持仓库管理、文件操作等功能。",
+  "examples_zh": [
+    "列出我在工蜂上的所有仓库",
+    "查看仓库 my-project 的最近提交记录",
+    "获取仓库 my-project 中 README.md 文件的内容",
+    "搜索工蜂仓库中包含「config」的文件",
+    "查看仓库 my-project 的分支列表"
+  ],
+  "examples_en": [
+    "列出我在工蜂上的所有仓库",
+    "查看仓库 my-project 的最近提交记录",
+    "获取仓库 my-project 中 README.md 文件的内容",
+    "搜索工蜂仓库中包含「config」的文件",
+    "查看仓库 my-project 的分支列表"
+  ],
+  "auth": "none"
+}

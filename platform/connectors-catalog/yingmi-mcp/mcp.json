@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "yingmi-mcp": {
+      "type": "streamable_http",
+      "url": "https://stargate.yingmi.com/mcp/v2?apiKey=${YINGMI_API_KEY}",
+      "env": {
+        "YINGMI_API_KEY": "${YINGMI_API_KEY}"
+      },
+      "timeout": 30000,
+      "transport": "streamable_http"
+    }
+  }
+}

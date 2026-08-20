@@ -1,0 +1,9 @@
+{
+  "name": "Agent Browser Core",
+  "slug": "agent-browser-core",
+  "version": "1.0.1",
+  "installedAt": 1780920318241,
+  "source": "marketplace",
+  "iconSource": "agent-browser-core",
+  "preinstalledTemplate": true
+}

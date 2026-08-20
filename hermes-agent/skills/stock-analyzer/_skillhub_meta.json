@@ -1,0 +1,9 @@
+{
+  "name": "股票综合分析器",
+  "slug": "stock-analyzer",
+  "version": "1.0.0",
+  "installedAt": 1780920318248,
+  "source": "marketplace",
+  "iconSource": "stock-analyzer",
+  "preinstalledTemplate": true
+}

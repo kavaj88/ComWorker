@@ -1,0 +1,18 @@
+{
+  "mcpServers": {
+    "tencent-docs-oa": {
+      "type": "streamable_http",
+      "url": "https://saas.docs.qq.com/api/v6/open/agent/mcp",
+      "timeout": 600,
+      "transport": "streamable_http",
+      "oauth": {
+        "authorization_endpoint": "https://saas.docs.qq.com/scenario/open-claw.html?authType=2",
+        "token_endpoint": "https://saas.docs.qq.com/api/v6/open/agent/mcp/oauth/token",
+        "registration_endpoint": "https://saas.docs.qq.com/api/v6/open/agent/mcp/oauth/register",
+        "scope": "docs:read docs:write docs:manage",
+        "client_id": "${TENCENT_DOCS_OA_CLIENT_ID}",
+        "client_secret": "${TENCENT_DOCS_OA_CLIENT_SECRET}"
+      }
+    }
+  }
+}

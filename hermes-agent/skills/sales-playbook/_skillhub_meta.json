@@ -1,0 +1,9 @@
+{
+  "name": "sales-playbook",
+  "slug": "sales-playbook",
+  "version": "1.0.0",
+  "installedAt": 1780920318244,
+  "source": "marketplace",
+  "iconSource": "sales-playbook",
+  "preinstalledTemplate": true
+}

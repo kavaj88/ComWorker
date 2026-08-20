@@ -1,0 +1,9 @@
+{
+  "name": "AI网文创作",
+  "slug": "novel-writing",
+  "version": "1.2.0",
+  "installedAt": 1780920318248,
+  "source": "marketplace",
+  "iconSource": "novel-writing",
+  "preinstalledTemplate": true
+}

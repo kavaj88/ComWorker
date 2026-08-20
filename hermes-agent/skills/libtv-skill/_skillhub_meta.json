@@ -1,0 +1,9 @@
+{
+  "name": "LibTV AI 创作",
+  "slug": "libtv-skill",
+  "version": "1.0.3",
+  "installedAt": 1780920318247,
+  "source": "marketplace",
+  "iconSource": "libtv-skill",
+  "preinstalledTemplate": true
+}

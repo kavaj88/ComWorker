@@ -1,0 +1,9 @@
+{
+  "name": "习惯打卡",
+  "slug": "habit-tracker",
+  "version": "1.0.0",
+  "installedAt": 1780920318236,
+  "source": "marketplace",
+  "iconSource": "habit-tracker",
+  "preinstalledTemplate": true
+}

@@ -1,0 +1,9 @@
+{
+  "name": "本地语音转文字",
+  "slug": "openai-whisper",
+  "version": "1.0.0",
+  "installedAt": 1780920318240,
+  "source": "marketplace",
+  "iconSource": "openai-whisper",
+  "preinstalledTemplate": true
+}

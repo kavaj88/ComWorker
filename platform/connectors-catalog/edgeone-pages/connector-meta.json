@@ -1,0 +1,14 @@
+{
+  "name": "EdgeOne Makers",
+  "source": "edgeone-pages",
+  "display_name": "EdgeOne Makers",
+  "description_zh": "将项目部署到 EdgeOne Makers 并返回线上访问地址，支持全栈、云函数、AI Agent 等开发场景。",
+  "description_en": "将项目部署到 EdgeOne Makers 并返回线上访问地址，支持全栈、云函数、AI Agent 等开发场景。",
+  "examples_zh": [
+    "开发个番茄时钟并部署到 EdgeOne Makers"
+  ],
+  "examples_en": [
+    "开发个番茄时钟并部署到 EdgeOne Makers"
+  ],
+  "auth": "none"
+}

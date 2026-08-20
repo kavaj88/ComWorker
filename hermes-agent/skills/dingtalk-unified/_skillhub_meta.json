@@ -1,0 +1,9 @@
+{
+  "name": "钉钉套件",
+  "slug": "dingtalk-unified",
+  "version": "1.0.4",
+  "installedAt": 1780920318232,
+  "source": "marketplace",
+  "iconSource": "dingtalk-unified",
+  "preinstalledTemplate": true
+}

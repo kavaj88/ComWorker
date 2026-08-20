@@ -1,0 +1,9 @@
+{
+  "name": "中国电商搜索",
+  "slug": "cn-ecommerce-search",
+  "version": "2.0.0",
+  "installedAt": 1780920318247,
+  "source": "marketplace",
+  "iconSource": "cn-ecommerce-search",
+  "preinstalledTemplate": true
+}

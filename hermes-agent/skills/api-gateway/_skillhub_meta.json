@@ -1,0 +1,9 @@
+{
+  "name": "API Gateway",
+  "slug": "api-gateway",
+  "version": "1.0.118",
+  "installedAt": 1780920318238,
+  "source": "marketplace",
+  "iconSource": "api-gateway",
+  "preinstalledTemplate": true
+}

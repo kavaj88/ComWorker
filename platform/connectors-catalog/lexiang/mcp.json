@@ -1,0 +1,16 @@
+{
+  "mcpServers": {
+    "lexiang": {
+      "timeout": 600,
+      "url": "https://mcp.lexiang-app.com/mcp",
+      "type": "streamable_http",
+      "transport": "streamable_http",
+      "oauth": {
+        "authorization_endpoint": "https://mcp.lexiang-app.com/oauth/authorize",
+        "token_endpoint": "https://mcp.lexiang-app.com/oauth/token",
+        "registration_endpoint": "https://mcp.lexiang-app.com/oauth/register",
+        "scope": "mcp api"
+      }
+    }
+  }
+}

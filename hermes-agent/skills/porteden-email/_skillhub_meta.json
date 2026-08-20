@@ -1,0 +1,9 @@
+{
+  "name": "PortEden Email",
+  "slug": "porteden-email",
+  "version": "1.0.5",
+  "installedAt": 1780920318241,
+  "source": "marketplace",
+  "iconSource": "porteden-email",
+  "preinstalledTemplate": true
+}

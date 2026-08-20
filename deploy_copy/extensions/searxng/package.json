@@ -1,0 +1,11 @@
+{
+  "name": "@comworker/searxng",
+  "version": "1.0.0",
+  "description": "SearXNG web search tool plugin for ComWorker",
+  "type": "module",
+  "main": "index.ts",
+  "dependencies": {},
+  "devDependencies": {
+    "comworker": "workspace:*"
+  }
+}

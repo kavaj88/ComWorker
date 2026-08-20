@@ -1,0 +1,9 @@
+{
+  "name": "腾讯电子签",
+  "slug": "tencent-esign-contract",
+  "version": "1.0.0",
+  "installedAt": 1780920318228,
+  "source": "marketplace",
+  "iconSource": "tencent-esign-contract",
+  "preinstalledTemplate": true
+}

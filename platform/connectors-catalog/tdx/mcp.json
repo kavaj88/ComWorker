@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "tdx": {
+      "url": "https://txmcp.tdx.com.cn:3001/txmcp",
+      "type": "streamable_http",
+      "timeout": 30000,
+      "transport": "streamable_http"
+    }
+  }
+}

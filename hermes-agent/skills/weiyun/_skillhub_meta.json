@@ -1,0 +1,9 @@
+{
+  "name": "腾讯微云",
+  "slug": "weiyun",
+  "version": "1.0.5",
+  "installedAt": 1780920318230,
+  "source": "marketplace",
+  "iconSource": "weiyun",
+  "preinstalledTemplate": true
+}

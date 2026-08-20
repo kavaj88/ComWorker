@@ -1,0 +1,184 @@
+{
+  "commands": {
+    "native": "auto",
+    "nativeSkills": "auto",
+    "restart": true
+  },
+
+  "agents": {
+    "defaults": {
+      "elevatedDefault": "full",
+      "timeoutSeconds": 300,
+      "subagents": {
+        "maxSpawnDepth": 2,
+        "maxChildrenPerAgent": 5,
+        "maxConcurrent": 3,
+        "runTimeoutSeconds": 600
+      }
+    },
+    "list": [
+      {
+        "id": "main",
+        "default": true,
+        "workspace": "Agents/main",
+        "subagents": {
+          "allowAgents": ["manager"]
+        },
+        "tools": {
+          "elevated": {
+            "enabled": true,
+            "allowFrom": { "webchat": ["*"], "web": ["*"] }
+          },
+          "exec": { "security": "full" }
+        }
+      },
+      {
+        "id": "manager",
+        "workspace": "Agents/manager",
+        "subagents": {
+          "allowAgents": ["programmer", "researcher", "hr"]
+        },
+        "tools": {
+          "elevated": {
+            "enabled": true,
+            "allowFrom": { "webchat": ["*"], "web": ["*"] }
+          },
+          "exec": { "security": "full" }
+        }
+      },
+      {
+        "id": "programmer",
+        "workspace": "Agents/programmer",
+        "tools": {
+          "elevated": {
+            "enabled": true,
+            "allowFrom": { "webchat": ["*"], "web": ["*"] }
+          },
+          "exec": { "security": "full" }
+        }
+      },
+      {
+        "id": "researcher",
+        "workspace": "Agents/researcher",
+        "tools": {
+          "elevated": {
+            "enabled": true,
+            "allowFrom": { "webchat": ["*"], "web": ["*"] }
+          },
+          "exec": { "security": "full" }
+        }
+      },
+      {
+        "id": "hr",
+        "workspace": "Agents/hr",
+        "tools": {
+          "elevated": {
+            "enabled": true,
+            "allowFrom": { "webchat": ["*"], "web": ["*"] }
+          },
+          "exec": { "security": "full" }
+        }
+      },
+      {
+        "id": "doctor",
+        "workspace": "Agents/doctor",
+        "tools": {
+          "elevated": {
+            "enabled": true,
+            "allowFrom": { "webchat": ["*"], "web": ["*"] }
+          },
+          "exec": { "security": "full" }
+        }
+      }
+    ]
+  },
+
+  "tools": {
+    "profile": "full",
+    "elevated": {
+      "enabled": true,
+      "allowFrom": {
+        "webchat": ["*"],
+        "web": ["*"],
+        "slack": ["*"],
+        "telegram": ["*"],
+        "discord": ["*"]
+      }
+    },
+    "exec": {
+      "security": "full",
+      "host": "gateway"
+    },
+    "agentToAgent": {
+      "enabled": true,
+      "allow": ["main", "manager", "programmer", "researcher", "hr", "doctor"]
+    },
+    "sessions": {
+      "visibility": "all"
+    },
+    "web": {
+      "search": {
+        "enabled": true
+      }
+    }
+  },
+
+  "browser": {
+    "enabled": true,
+    "executablePath": "/usr/bin/chromium",
+    "noSandbox": true,
+    "extraArgs": [
+    "--disable-dev-shm-usage",
+    "--disable-dbus",
+    "--ozone-platform=headless"
+    ]
+  },
+
+  "plugins": {
+    "enabled": true,
+    "allow": ["searxng"],
+    "entries": {
+      "searxng": {
+        "enabled": true,
+        "config": {}
+      }
+    }
+  },
+
+  "memory": {
+    "backend": "qmd",
+    "citations": "auto",
+    "qmd": {
+      "includeDefaultMemory": true,
+      "command": "/root/.comworker/qmd-runner.sh",
+      "searchMode": "search",
+      "update": {
+        "interval": "5m",
+        "debounceMs": 15000,
+        "onBoot": true,
+        "waitForBootSync": false
+      },
+      "limits": {
+        "maxResults": 6,
+        "timeoutMs": 30000
+      },
+      "scope": {
+        "default": "deny",
+        "rules": [
+          { "action": "allow", "match": { "chatType": "direct" } }
+        ]
+      }
+    }
+  },
+
+  "session": {
+    "dmScope": "per-channel-peer",
+    "agentToAgent": {
+      "maxPingPongTurns": 3
+    },
+    "reset": {
+      "mode": "idle",
+      "idleMinutes": 10080
+    }
+  }
+}

@@ -1,0 +1,44 @@
+# ComWorker — 私有镜像仓库交付模式（Compose override）
+#
+# 客户机只需本文件 + 从私有仓库拉取，无需源码、无需构建、无需联网装依赖。
+# 用法：
+#   export COMWORKER_REGISTRY=registry.cn-xxx.aliyuncs.com/your-namespace
+#   export COMWORKER_TAG=1.0.0
+#   docker compose -f docker-compose.yml -f docker-compose.registry.yml pull
+#   docker compose -f docker-compose.yml -f docker-compose.registry.yml up -d
+#
+# 与默认 docker-compose.yml 的差异：
+#   - 各服务改用 image: 拉取（移除 build:），本地不编译
+#   - PLATFORM_HERMES_IMAGE / PLATFORM_COMWORKER_IMAGE 指向带仓库前缀的全限定名，
+#     避免网关为用户动态创建容器时去 docker.io 拉私有镜像名导致 403
+#   - cca-front-dev（源码 bind 的 dev 服务）默认不启动（profiles: dev）
+#   - 新增 cca-front 生产服务（nginx 静态 + 反代 /api 到网关）
+
+services:
+  gateway:
+    build: null
+    image: ${COMWORKER_REGISTRY:-registry.example.com}/comworker-gateway:${COMWORKER_TAG:-latest}
+    environment:
+      PLATFORM_COMWORKER_IMAGE: ${COMWORKER_REGISTRY:-registry.example.com}/comworker:${COMWORKER_TAG:-latest}
+      PLATFORM_HERMES_IMAGE: ${COMWORKER_REGISTRY:-registry.example.com}/comworker-hermes-agent:${COMWORKER_TAG:-latest}
+
+  manage-front:
+    build: null
+    image: ${COMWORKER_REGISTRY:-registry.example.com}/comworker-manage:${COMWORKER_TAG:-latest}
+
+  cca-front-dev:
+    profiles: ["dev"]
+
+  cca-front:
+    image: ${COMWORKER_REGISTRY:-registry.example.com}/comworker-cca-front:${COMWORKER_TAG:-latest}
+    ports:
+      - "3000:3000"
+    environment:
+      - VITE_API_URL=
+    networks:
+      - comworker-external
+    depends_on:
+      - gateway
+
+  postgres:
+    image: ${COMWORKER_REGISTRY:-registry.example.com}/comworker-postgres:${COMWORKER_TAG:-16-alpine}

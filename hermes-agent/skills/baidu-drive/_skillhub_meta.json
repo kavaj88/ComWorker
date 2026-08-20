@@ -1,0 +1,9 @@
+{
+  "name": "百度网盘",
+  "slug": "baidu-drive",
+  "version": "1.4.3",
+  "installedAt": 1780920318231,
+  "source": "marketplace",
+  "iconSource": "baidu-drive",
+  "preinstalledTemplate": true
+}

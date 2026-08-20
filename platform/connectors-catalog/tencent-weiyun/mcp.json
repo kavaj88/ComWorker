@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "tencent-weiyun": {
+      "url": "https://www.weiyun.com/api/v3/mcpserver",
+      "type": "streamable_http",
+      "timeout": 60,
+      "disabled": false,
+      "transport": "streamable_http"
+    }
+  }
+}

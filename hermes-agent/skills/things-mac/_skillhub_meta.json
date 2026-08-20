@@ -1,0 +1,9 @@
+{
+  "name": "Things任务",
+  "slug": "things-mac",
+  "version": "1.0.0",
+  "installedAt": 1780920318235,
+  "source": "marketplace",
+  "iconSource": "things-mac",
+  "preinstalledTemplate": true
+}

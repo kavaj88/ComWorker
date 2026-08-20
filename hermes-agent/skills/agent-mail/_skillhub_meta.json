@@ -1,0 +1,9 @@
+{
+  "name": "智能体邮箱",
+  "slug": "agent-mail",
+  "version": "1.0.0",
+  "installedAt": 1780920318237,
+  "source": "marketplace",
+  "iconSource": "agent-mail",
+  "preinstalledTemplate": true
+}

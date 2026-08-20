@@ -1,0 +1,9 @@
+{
+  "name": "企业微信套件",
+  "slug": "wecom-unified",
+  "version": "1.0.0",
+  "installedAt": 1780920318226,
+  "source": "marketplace",
+  "iconSource": "wecom-unified",
+  "preinstalledTemplate": true
+}

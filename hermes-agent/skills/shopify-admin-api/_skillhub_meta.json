@@ -1,0 +1,9 @@
+{
+  "name": "Shopify Admin API",
+  "slug": "shopify-admin-api",
+  "version": "1.0.0",
+  "installedAt": 1780920318247,
+  "source": "marketplace",
+  "iconSource": "shopify-admin-api",
+  "preinstalledTemplate": true
+}

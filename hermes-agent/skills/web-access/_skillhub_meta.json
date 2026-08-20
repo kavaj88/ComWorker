@@ -1,0 +1,9 @@
+{
+  "name": "Web Access（浏览器自动化）",
+  "slug": "web-access",
+  "version": "2.5.2",
+  "installedAt": 1780920318239,
+  "source": "marketplace",
+  "iconSource": "web-access",
+  "preinstalledTemplate": true
+}
