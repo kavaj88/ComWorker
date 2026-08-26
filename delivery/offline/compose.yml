@@ -1,0 +1,135 @@
+name: comworker-offline
+
+services:
+  skills-init:
+    image: comworker-hermes-agent:${COMWORKER_VERSION:-__COMWORKER_VERSION__}
+    pull_policy: never
+    entrypoint: ["/bin/sh", "-c"]
+    command: ["set -eu; cp -a /opt/hermes/skills/. /skills/"]
+    volumes:
+      - builtin-skills:/skills
+    restart: "no"
+
+  postgres:
+    image: comworker-postgres:16-alpine
+    pull_policy: never
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-comworker}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      POSTGRES_DB: ${POSTGRES_DB:-comworker_platform}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    networks:
+      - internal
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-comworker} -d ${POSTGRES_DB:-comworker_platform}"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  gateway:
+    image: comworker-gateway:${COMWORKER_VERSION:-__COMWORKER_VERSION__}
+    pull_policy: never
+    secrets:
+      - jwt_secret
+      - model_keys_master_key
+      - admin_password
+    environment:
+      PLATFORM_DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-comworker}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-comworker_platform}
+      PLATFORM_JWT_SECRET_FILE: /run/secrets/jwt_secret
+      PLATFORM_MODEL_KEYS_MASTER_KEY_FILE: /run/secrets/model_keys_master_key
+      PLATFORM_ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
+      PLATFORM_ADMIN_PASSWORD_FILE: /run/secrets/admin_password
+      PLATFORM_HERMES_IMAGE: comworker-hermes-agent:${COMWORKER_VERSION:-__COMWORKER_VERSION__}
+      PLATFORM_DEDICATED_RUNTIME_BACKEND: hermes
+      PLATFORM_CONTAINER_NETWORK: comworker-internal
+      PLATFORM_SHARED_COMWORKER_ENABLED: "false"
+      PLATFORM_CONTAINER_TZ: ${CONTAINER_TZ:-Asia/Shanghai}
+      PLATFORM_CONTAINER_MEMORY_LIMIT: ${CONTAINER_MEMORY_LIMIT:-2g}
+      PLATFORM_CONTAINER_SHM_SIZE: ${CONTAINER_SHM_SIZE:-1g}
+      PLATFORM_SKILLS_DIR: /app/platform_skills
+      BUILTIN_SKILLS_DIR: /app/hermes_skills
+      BUILTIN_SKILLS_VOLUME: comworker-builtin-skills
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - platform-data:/data
+      - platform-skills:/app/platform_skills
+      - builtin-skills:/app/hermes_skills:ro
+    networks:
+      internal:
+      external:
+        aliases:
+          - comworker-gateway
+          - backend
+    depends_on:
+      skills-init:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/docs', timeout=3)"]
+      interval: 5s
+      timeout: 4s
+      retries: 30
+
+  manage:
+    image: comworker-manage:${COMWORKER_VERSION:-__COMWORKER_VERSION__}
+    pull_policy: never
+    environment:
+      API_URL: http://gateway:8080
+    ports:
+      - "${COMWORKER_MANAGE_PORT:-3081}:3000"
+    networks:
+      - external
+    depends_on:
+      gateway:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000',{redirect:'manual'}).then(r=>process.exit(r.status<500?0:1)).catch(()=>process.exit(1))"]
+      interval: 5s
+      timeout: 4s
+      retries: 30
+
+  client:
+    image: comworker-cca-front:${COMWORKER_VERSION:-__COMWORKER_VERSION__}
+    pull_policy: never
+    ports:
+      - "${COMWORKER_CLIENT_PORT:-3000}:3000"
+    networks:
+      - external
+    depends_on:
+      gateway:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:3000/ || exit 1"]
+      interval: 5s
+      timeout: 4s
+      retries: 30
+
+networks:
+  internal:
+    name: comworker-internal
+  external:
+    name: comworker-external
+
+volumes:
+  postgres-data:
+    name: comworker-postgres-data
+  platform-data:
+    name: comworker-platform-data
+  platform-skills:
+    name: comworker-platform-skills
+  builtin-skills:
+    name: comworker-builtin-skills
+
+secrets:
+  jwt_secret:
+    file: ./secrets/jwt_secret
+  model_keys_master_key:
+    file: ./secrets/model_keys_master_key
+  admin_password:
+    file: ./secrets/admin_password
