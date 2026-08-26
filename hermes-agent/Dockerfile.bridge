@@ -31,8 +31,10 @@ RUN if [ -n "${APT_DEBIAN_MIRROR}" ]; then \
         poppler-utils tesseract-ocr tesseract-ocr-chi-sim tesseract-ocr-eng \
         libreoffice-core libreoffice-writer libreoffice-calc \
         libmagic1 file antiword catdoc && \
-    rm -rf /var/lib/apt/lists/* && \
-    pip3 install --break-system-packages --no-cache-dir -i ${PIP_INDEX_URL} \
+    rm -rf /var/lib/apt/lists/*
+
+RUN pip3 install --break-system-packages --no-cache-dir --retries 8 --timeout 120 \
+        -i ${PIP_INDEX_URL} \
         requests pymupdf pdfplumber python-docx openpyxl python-pptx pandas xlrd odfpy python-magic chardet
 
 WORKDIR /opt/hermes

@@ -20,6 +20,7 @@ TEMPLATE_DIR = ROOT / "delivery" / "offline"
 VERSION_MARKER = "__COMWORKER_VERSION__"
 APT_DEBIAN_MIRROR = "https://mirrors.aliyun.com/debian"
 APT_SECURITY_MIRROR = "https://mirrors.aliyun.com/debian-security"
+PIP_INDEX_URL = "https://mirrors.aliyun.com/pypi/simple"
 FORBIDDEN_ROOTS = {
     ".git",
     "secrets",
@@ -146,6 +147,8 @@ def build_commands(version: str, platform: str) -> list[list[str]]:
             f"APT_DEBIAN_MIRROR={APT_DEBIAN_MIRROR}",
             "--build-arg",
             f"APT_SECURITY_MIRROR={APT_SECURITY_MIRROR}",
+            "--build-arg",
+            f"PIP_INDEX_URL={PIP_INDEX_URL}",
             "--build-arg",
             f"BASE_TAG={version}",
             "-f",

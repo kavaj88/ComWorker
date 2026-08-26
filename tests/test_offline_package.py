@@ -58,6 +58,14 @@ class OfflineTemplatePolicyTests(unittest.TestCase):
         self.assertIn("$Compose = @('compose'", powershell)
         self.assertIn("Invoke-Docker @Compose up -d", powershell)
 
+    def test_bridge_caches_system_packages_before_python_packages(self):
+        dockerfile = (ROOT / "hermes-agent" / "Dockerfile.bridge").read_text(encoding="utf-8")
+
+        self.assertRegex(
+            dockerfile,
+            r"rm -rf /var/lib/apt/lists/\*\s*\n\s*RUN pip3 install",
+        )
+
 
 class OfflinePackageHelperTests(unittest.TestCase):
     def test_hermes_image_context_contains_frozen_lockfile(self):
@@ -145,6 +153,7 @@ class OfflinePackageHelperTests(unittest.TestCase):
                 for command in flattened[:2]
             )
         )
+        self.assertIn("PIP_INDEX_URL=https://mirrors.aliyun.com/pypi/simple", flattened[1])
         self.assertTrue(any("comworker-cca-front:1.2.3" in command for command in flattened))
 
     def test_sync_build_metadata_populates_both_image_contexts(self):
