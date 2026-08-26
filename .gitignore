@@ -36,6 +36,7 @@ secrets/
 .workbuddy/
 .scratch/
 cache/
+.worktrees/
 
 # ── Local agent / scratch docs (use `git add -f` to force-share) ─────
 docs/
