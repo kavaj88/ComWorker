@@ -133,6 +133,18 @@ class OfflinePackageHelperTests(unittest.TestCase):
         self.assertIn("BASE_TAG=1.2.3", flattened[1])
         self.assertTrue(all("--platform linux/amd64" in command for command in flattened))
         self.assertTrue(all(".env" not in command for command in flattened))
+        self.assertTrue(
+            all(
+                "APT_DEBIAN_MIRROR=https://mirrors.aliyun.com/debian" in command
+                for command in flattened[:2]
+            )
+        )
+        self.assertTrue(
+            all(
+                "APT_SECURITY_MIRROR=https://mirrors.aliyun.com/debian-security" in command
+                for command in flattened[:2]
+            )
+        )
         self.assertTrue(any("comworker-cca-front:1.2.3" in command for command in flattened))
 
     def test_sync_build_metadata_populates_both_image_contexts(self):
@@ -151,7 +163,9 @@ class OfflinePackageHelperTests(unittest.TestCase):
                 package.sync_build_metadata()
 
             self.assertTrue((root / "platform" / "deploy_copy" / "Agents" / "main.txt").is_file())
-            self.assertTrue((root / "hermes-agent" / "deploy_copy" / "Agents" / "main.txt").is_file())
+            self.assertTrue(
+                (root / "hermes-agent" / "deploy_copy" / "Agents" / "main.txt").is_file()
+            )
 
     def test_delivery_tree_contains_manifest_and_checksums_without_secrets(self):
         with tempfile.TemporaryDirectory() as directory:

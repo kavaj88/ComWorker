@@ -18,6 +18,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 TEMPLATE_DIR = ROOT / "delivery" / "offline"
 VERSION_MARKER = "__COMWORKER_VERSION__"
+APT_DEBIAN_MIRROR = "https://mirrors.aliyun.com/debian"
+APT_SECURITY_MIRROR = "https://mirrors.aliyun.com/debian-security"
 FORBIDDEN_ROOTS = {
     ".git",
     "secrets",
@@ -54,8 +56,7 @@ def run(
     if result.returncode != 0:
         detail = (result.stderr or result.stdout or "").strip()
         raise PackageError(
-            f"命令失败 ({result.returncode}): {command[0]}"
-            + (f"\n{detail}" if detail else "")
+            f"命令失败 ({result.returncode}): {command[0]}" + (f"\n{detail}" if detail else "")
         )
     return result
 
@@ -126,6 +127,10 @@ def build_commands(version: str, platform: str) -> list[list[str]]:
             "build",
             "--platform",
             target,
+            "--build-arg",
+            f"APT_DEBIAN_MIRROR={APT_DEBIAN_MIRROR}",
+            "--build-arg",
+            f"APT_SECURITY_MIRROR={APT_SECURITY_MIRROR}",
             "-f",
             "hermes-agent/Dockerfile",
             "-t",
@@ -137,6 +142,10 @@ def build_commands(version: str, platform: str) -> list[list[str]]:
             "build",
             "--platform",
             target,
+            "--build-arg",
+            f"APT_DEBIAN_MIRROR={APT_DEBIAN_MIRROR}",
+            "--build-arg",
+            f"APT_SECURITY_MIRROR={APT_SECURITY_MIRROR}",
             "--build-arg",
             f"BASE_TAG={version}",
             "-f",
@@ -432,7 +441,7 @@ def main(argv: list[str] | None = None) -> int:
         output_path = output_dir / f"{package_root_name(version, arch)}.zip"
         create_zip(delivery_root, output_path)
         log(f"离线包: {output_path}")
-        log(f"大小: {output_path.stat().st_size / (1024 ** 3):.2f} GiB")
+        log(f"大小: {output_path.stat().st_size / (1024**3):.2f} GiB")
         log(f"SHA-256: {sha256_file(output_path)}")
     finally:
         if work_dir.exists() and not args.keep_work_dir:
