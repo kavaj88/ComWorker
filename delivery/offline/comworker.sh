@@ -6,6 +6,10 @@ cd "$ROOT"
 COMPOSE=(docker compose -p comworker-offline -f compose.yml)
 action="${1:-status}"
 
+if [ -s secrets/admin_password ]; then
+  export ADMIN_PASSWORD="$(cat secrets/admin_password)"
+fi
+
 env_value() { sed -n "s/^$1=//p" .env | head -n 1; }
 
 backup() {

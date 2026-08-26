@@ -59,6 +59,7 @@ ensure_secret() {
 ensure_secret secrets/jwt_secret
 ensure_secret secrets/model_keys_master_key
 ensure_secret secrets/admin_password
+export ADMIN_PASSWORD="$(cat secrets/admin_password)"
 
 if ! grep -q '^POSTGRES_PASSWORD=.' .env; then
   db_password="$(generate_secret)"

@@ -8,6 +8,9 @@ $ErrorActionPreference = 'Stop'
 $Root = Split-Path -Parent $MyInvocation.MyCommand.Path
 Set-Location $Root
 $Compose = @('compose', '-p', 'comworker-offline', '-f', 'compose.yml')
+if (Test-Path secrets/admin_password) {
+    $env:ADMIN_PASSWORD = Get-Content -Raw secrets/admin_password
+}
 
 function Invoke-Compose {
     param([Parameter(ValueFromRemainingArguments = $true)][string[]]$Arguments)

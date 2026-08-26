@@ -65,6 +65,7 @@ foreach ($name in @('jwt_secret', 'model_keys_master_key', 'admin_password')) {
         Set-Content -LiteralPath $path -NoNewline -Value (New-RandomSecret)
     }
 }
+$env:ADMIN_PASSWORD = Get-Content -Raw secrets/admin_password
 
 $envLines = Get-Content .env
 $passwordLine = $envLines | Where-Object { $_ -match '^POSTGRES_PASSWORD=.+$' }

@@ -34,13 +34,12 @@ services:
     secrets:
       - jwt_secret
       - model_keys_master_key
-      - admin_password
     environment:
       PLATFORM_DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-comworker}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-comworker_platform}
       PLATFORM_JWT_SECRET_FILE: /run/secrets/jwt_secret
       PLATFORM_MODEL_KEYS_MASTER_KEY_FILE: /run/secrets/model_keys_master_key
       PLATFORM_ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
-      PLATFORM_ADMIN_PASSWORD_FILE: /run/secrets/admin_password
+      PLATFORM_ADMIN_PASSWORD: ${ADMIN_PASSWORD:?ADMIN_PASSWORD is required}
       PLATFORM_HERMES_IMAGE: comworker-hermes-agent:${COMWORKER_VERSION:-__COMWORKER_VERSION__}
       PLATFORM_DEDICATED_RUNTIME_BACKEND: hermes
       PLATFORM_CONTAINER_NETWORK: comworker-internal
@@ -131,5 +130,3 @@ secrets:
     file: ./secrets/jwt_secret
   model_keys_master_key:
     file: ./secrets/model_keys_master_key
-  admin_password:
-    file: ./secrets/admin_password
