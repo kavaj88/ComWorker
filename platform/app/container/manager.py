@@ -121,6 +121,12 @@ def _runtime_mount_target() -> str:
     return "/workspace"
 
 
+def _resolve_builtin_skills_volume() -> str | None:
+    """返回离线交付使用的内置技能命名卷。"""
+    value = os.environ.get("BUILTIN_SKILLS_VOLUME", "").strip()
+    return value or None
+
+
 def _resolve_builtin_skills_host_dir() -> str | None:
     """Resolve the host directory holding the bundled built-in skills.
 
@@ -164,9 +170,9 @@ def _build_runtime_mounts(data_vol: str, short_id: str) -> list:
       - ``/opt/data``    — HERMES_HOME (profiles, config, skills cache)
 
     They also get the bundled built-in skills mounted read-only at
-    ``/opt/hermes/skills`` from the host (see ``_resolve_builtin_skills_host_dir``)
-    so the live skill tree (incl. catalog.json) is used by skills_sync and the
-    skill listing API without rebuilding the hermes image.
+    ``/opt/hermes/skills``. Offline packages use a named volume; source-based
+    development falls back to the host bind resolved by
+    ``_resolve_builtin_skills_host_dir``.
     """
     mounts = [
         docker.types.Mount(_runtime_mount_target(), data_vol, type="volume"),
@@ -174,8 +180,20 @@ def _build_runtime_mounts(data_vol: str, short_id: str) -> list:
     if _runtime_backend() == "hermes":
         home_vol = _hermes_home_volume_name(short_id)
         mounts.append(docker.types.Mount("/opt/data", home_vol, type="volume"))
-        host_skills = _resolve_builtin_skills_host_dir()
-        if host_skills:
+        builtin_volume = _resolve_builtin_skills_volume()
+        if builtin_volume:
+            mounts.append(
+                docker.types.Mount(
+                    "/opt/hermes/skills",
+                    builtin_volume,
+                    type="volume",
+                    read_only=True,
+                )
+            )
+        else:
+            host_skills = _resolve_builtin_skills_host_dir()
+            if not host_skills:
+                return mounts
             mounts.append(
                 docker.types.Mount("/opt/hermes/skills", host_skills, type="bind", read_only=True)
             )
