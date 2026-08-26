@@ -153,7 +153,7 @@ class OfflinePackageHelperTests(unittest.TestCase):
                 for command in flattened[:2]
             )
         )
-        self.assertIn("PIP_INDEX_URL=https://mirrors.aliyun.com/pypi/simple", flattened[1])
+        self.assertIn("PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple", flattened[1])
         self.assertTrue(any("comworker-cca-front:1.2.3" in command for command in flattened))
 
     def test_sync_build_metadata_populates_both_image_contexts(self):

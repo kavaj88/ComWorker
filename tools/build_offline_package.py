@@ -20,7 +20,7 @@ TEMPLATE_DIR = ROOT / "delivery" / "offline"
 VERSION_MARKER = "__COMWORKER_VERSION__"
 APT_DEBIAN_MIRROR = "https://mirrors.aliyun.com/debian"
 APT_SECURITY_MIRROR = "https://mirrors.aliyun.com/debian-security"
-PIP_INDEX_URL = "https://mirrors.aliyun.com/pypi/simple"
+PIP_INDEX_URL = "https://pypi.tuna.tsinghua.edu.cn/simple"
 FORBIDDEN_ROOTS = {
     ".git",
     "secrets",
