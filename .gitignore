@@ -11,6 +11,7 @@ __pycache__/
 .pytest_cache/
 .ruff_cache/
 *.lock
+!hermes-agent/uv.lock
 
 # ── Node / frontend build ───────────────────────────────────────────
 node_modules/

@@ -60,6 +60,12 @@ class OfflineTemplatePolicyTests(unittest.TestCase):
 
 
 class OfflinePackageHelperTests(unittest.TestCase):
+    def test_hermes_image_context_contains_frozen_lockfile(self):
+        self.assertTrue(
+            (ROOT / "hermes-agent" / "uv.lock").is_file(),
+            "Hermes Dockerfile 使用 uv sync --frozen，构建上下文必须包含 uv.lock",
+        )
+
     def test_normalize_platform_accepts_linux_amd64(self):
         self.assertEqual(package.normalize_platform("linux/amd64"), ("linux", "amd64"))
 
