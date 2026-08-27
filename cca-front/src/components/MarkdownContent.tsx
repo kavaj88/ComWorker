@@ -188,7 +188,7 @@ function MarkdownContentImpl({
               return (
                 <button
                   type="button"
-                  onClick={() => onOpenKnowledgeFile(kbPath)}
+                  onClick={() => onOpenKnowledgeFile?.(kbPath)}
                   className="inline-flex items-center gap-1 rounded bg-light-bg/80 px-1.5 py-0.5 text-xs text-accent-blue font-mono hover:underline"
                   title={`打开知识库文件 ${kbPath}`}
                 >
@@ -202,7 +202,7 @@ function MarkdownContentImpl({
               return (
                 <button
                   type="button"
-                  onClick={() => onOpenWorkspaceFile(workspacePath)}
+                  onClick={() => onOpenWorkspaceFile?.(workspacePath)}
                   className="inline-flex items-center gap-1 rounded bg-light-bg/80 px-1.5 py-0.5 text-xs text-accent-blue font-mono hover:underline"
                   title={`打开文件 ${workspacePath}`}
                 >

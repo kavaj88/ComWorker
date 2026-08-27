@@ -11,7 +11,6 @@ import {
   X,
   Settings as SettingsIcon,
 } from 'lucide-react'
-import IconButton from '../components/ui/IconButton.tsx'
 import { useToast } from '../components/ui/Toast.tsx'
 import {
   DEFAULT_APPEARANCE,
@@ -229,7 +228,7 @@ function SystemSettings() {
                   <button
                     onClick={() => {
                       navigator.clipboard.writeText(containerInfo.container_name || '')
-                      toast.show({ message: '已复制容器名称', variant: 'success' })
+                      toast.success('已复制容器名称')
                     }}
                     className="text-light-text-secondary hover:text-light-text transition-colors"
                     title="复制容器名称"

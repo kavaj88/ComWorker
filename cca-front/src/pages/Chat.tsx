@@ -15,12 +15,8 @@ import {
   FileText,
   Menu,
   Square,
-  ChevronRight,
   Wrench,
   Brain,
-  CircleCheck,
-  AlertCircle,
-  ShieldQuestion,
   Info,
   Plug,
 } from 'lucide-react'
@@ -32,8 +28,8 @@ import ClearableTextarea from '../components/ui/ClearableTextarea.tsx'
 import IconButton from '../components/ui/IconButton.tsx'
 import Tooltip from '../components/ui/Tooltip.tsx'
 import { useToast } from '../components/ui/Toast.tsx'
-import { ThinkingCard } from '../components/ThinkingCard.tsx'
 import { ProcessCard, type ProcessStep } from '../components/ProcessCard.tsx'
+import type { BoundContext } from '../components/ContextSelector.tsx'
 import type { LayoutOutletContext } from '../components/Layout.tsx'
 import {
   getSession,
@@ -42,7 +38,6 @@ import {
   getRunEventsStreamUrl,
   abortAgentRun,
   abortActiveSessionRun,
-  respondRunApproval,
   getAccessToken,
   uploadFileToWorkspace,
   listSlashCommands,
@@ -61,8 +56,6 @@ import {
   getSlashQuery,
   type SlashCommandItem,
 } from '../lib/slashCommands.ts'
-
-const systemAgentIds = new Set(['main', 'manager', 'programmer', 'researcher', 'hr', 'doctor'])
 
 /**
  * Extract agentId from session key.
@@ -88,6 +81,14 @@ interface PendingFile {
   name: string
   isImage: boolean
   previewUrl?: string
+}
+
+interface ContextPickerItem {
+  id: string
+  name: string
+  desc?: string
+  enabled?: boolean
+  needsAuth?: boolean
 }
 
 type AgentActivityStatus = 'running' | 'completed' | 'failed' | 'thinking' | 'approval'
@@ -316,14 +317,6 @@ function extractProcessingThoughts(messages: SessionDetail['messages']): string[
     })
     return followedByTool ? [msg.content.trim()] : []
   })
-}
-
-function formatActivityDuration(ms: number): string {
-  const totalSeconds = Math.max(0, Math.round(ms / 1000))
-  const minutes = Math.floor(totalSeconds / 60)
-  const seconds = totalSeconds % 60
-  if (minutes <= 0) return String(seconds) + 's'
-  return String(minutes) + 'm ' + String(seconds) + 's'
 }
 
 function archiveStorageKey(sessionKey: string): string {
@@ -604,7 +597,7 @@ export default function Chat() {
   // one thinking step per assistant message (one per LLM call).
   const [displayedReasoningBySession, setDisplayedReasoningBySession] = useState<Record<string, ReasoningSegment[]>>({})
   const [activityBySession, setActivityBySession] = useState<Record<string, AgentActivityEvent[]>>({})
-  const [activityArchivesBySession, setActivityArchivesBySession] = useState<Record<string, AgentActivityArchive[]>>({})
+  const [, setActivityArchivesBySession] = useState<Record<string, AgentActivityArchive[]>>({})
   const activityBySessionRef = useRef<Record<string, AgentActivityEvent[]>>({})
   const targetTextBySessionRef = useRef<Record<string, string>>({})
   const reasoningTextBySessionRef = useRef<Record<string, ReasoningSegment[]>>({})
@@ -805,7 +798,7 @@ export default function Chat() {
       return {
         ...m,
         model: persistedModel,
-        timestamp: persistedTime || m.timestamp || undefined,
+        timestamp: persistedTime || m.timestamp || null,
         hasReasoning: m.role === 'assistant' && !!(m.reasoning_content && m.reasoning_content.trim()),
         processSteps: hasSteps ? steps : undefined,
       }
@@ -921,7 +914,7 @@ export default function Chat() {
     return arr[visibleIdx] || undefined
   }
   const messagesEndRef = useRef<HTMLDivElement>(null)
-  const inputRef = useRef<HTMLTextAreaRef>(null)
+  const inputRef = useRef<HTMLTextAreaElement>(null)
   const slashMenuRef = useRef<HTMLDivElement>(null)
   const activeSessionKeyRef = useRef<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -1591,9 +1584,6 @@ export default function Chat() {
               activityBySessionRef.current = { ...prev, [key]: nextEvents }
               return { ...prev, [key]: nextEvents }
             })
-            if (eventType === 'run.failed') {
-              finishStream('failed')
-            }
             lastEventType = eventType
             return
           }
@@ -1812,7 +1802,6 @@ export default function Chat() {
     // 2) 轮询 run 状态直到结束（2s 粒度，远快于旧方案 25s 慢轮询）
     setSendingForSession(key, true)
     setRunIdForSession(key, run.runId)
-    let finished = false
     let failed = false
     const pollStart = Date.now()
     while (Date.now() - pollStart < 900000) {
@@ -1829,7 +1818,6 @@ export default function Chat() {
         st = ''
       }
       if (isRunFinished(st)) {
-        finished = true
         failed = isRunFailed(st)
         break
       }
@@ -1853,33 +1841,6 @@ export default function Chat() {
     if (failed) void showRunFailure(key, run.runId)
   }, [applyLoadedMessages, getSession, isRunFinished, isRunFailed, loadFinalMessages, showRunFailure, waitForAgentRun, setSendingForSession, setRunIdForSession])
 
-  const handleSelectContext = useCallback(
-    (item: BoundContext) => {
-      if (item.category === 'expert') {
-        // 专家：切换到该 agent 的对话（进入草稿态），并标记绑定。
-        setActiveSessionKey(null)
-        setIsDraftSession(true)
-        setDraftAgentId(item.id)
-        setBoundContext(item)
-        return
-      }
-      // 技能 / 连接器：在当前会话中绑定。连接器以管理端/连接器页开关为准，
-      // 前端选择器不再自动 enable；未启用的条目在选择器中置灰不可选。
-      setBoundContext(item)
-    },
-    [toast],
-  )
-
-  const handleClearContext = useCallback(() => {
-    if (boundContext?.category === 'expert') {
-      // 清除专家绑定：切回 main agent 草稿态。
-      setActiveSessionKey(null)
-      setIsDraftSession(true)
-      setDraftAgentId('')
-    }
-    setBoundContext(null)
-  }, [boundContext])
-
   const handleSend = async () => {
     const text = input.trim()
     if ((!text && pendingFiles.length === 0) || (!activeSessionKeyRef.current && !isDraftSession) || chatLoading) return
@@ -1898,7 +1859,7 @@ export default function Chat() {
       const now = new Date().toISOString()
       // 标题用"第一个问题"（取首条用户消息、清理空白、截断）；过长由显示层再截断。
       firstTurnTitle = text
-        ? buildTitleFromMessages([{ role: 'user', content: text }])
+        ? buildTitleFromMessages([{ role: 'user', content: text, timestamp: null }])
         : (pendingFiles.length > 0 ? buildFallbackTitleFromText(pendingFiles.length) : '新对话')
       const optimisticSession: Session = {
         key: sendingSessionKey,
@@ -2224,16 +2185,6 @@ export default function Chat() {
     events.sort((a, b) => a.ts - b.ts)
     return events.map(e => e.step)
   }, [deferredDisplayedReasoning, currentActivity, activeSessionKey])
-  const currentActivityArchives = activeSessionKey ? activityArchivesBySession[activeSessionKey] || [] : []
-  const archiveByAssistantIndex = useMemo(() => {
-    const map = new Map<number, AgentActivityArchive>()
-    currentActivityArchives.forEach(archive => {
-      if (typeof archive.assistantIndex === 'number') {
-        map.set(archive.assistantIndex, archive)
-      }
-    })
-    return map
-  }, [currentActivityArchives])
   const isDraftStart = isDraftSession && messages.length === 0 && !activeSessionKey
   const agentOptions = useMemo(() => {
     const hasMain = agents.some(agent => agent.id === 'main')
@@ -2325,7 +2276,7 @@ export default function Chat() {
 
   const contextPickerQuery = agentSearch.trim().toLowerCase()
 
-  const contextPickerItems = useMemo(() => {
+  const contextPickerItems = useMemo<ContextPickerItem[]>(() => {
     if (activeContextCategory === 'expert') {
       return agentOptions
         .filter((a) => a.id !== 'main')
@@ -2596,197 +2547,6 @@ export default function Chat() {
       </select>
     </label>
   )
-
-  const renderActivityIcon = (activity: AgentActivityEvent) => {
-    const iconClass = activity.status === 'failed'
-      ? 'text-accent-red'
-      : activity.status === 'completed'
-        ? 'text-accent-green'
-        : activity.status === 'approval'
-          ? 'text-accent-yellow'
-          : 'text-accent-blue'
-
-    if (activity.status === 'completed') return <CircleCheck size={14} className={iconClass} />
-    if (activity.status === 'failed') return <AlertCircle size={14} className={iconClass} />
-    if (activity.status === 'thinking') return <Brain size={14} className={iconClass} />
-    if (activity.status === 'approval') return <ShieldQuestion size={14} className={iconClass} />
-    return <Wrench size={14} className={iconClass + ' ' + (activity.status === 'running' ? 'animate-pulse' : '')} />
-  }
-
-  const handleApprovalChoice = useCallback(async (activity: AgentActivityEvent, choice: string) => {
-    const key = activeSessionKeyRef.current
-    if (!key) return
-    setActivityBySession(prev => ({
-      ...prev,
-      [key]: (prev[key] || []).map(item => item.id === activity.id ? { ...item, responding: true } : item),
-    }))
-    activityBySessionRef.current = {
-      ...activityBySessionRef.current,
-      [key]: (activityBySessionRef.current[key] || []).map(item => item.id === activity.id ? { ...item, responding: true } : item),
-    }
-    try {
-      await respondRunApproval(activity.runId, choice)
-      setActivityBySession(prev => {
-        const next = {
-          ...prev,
-          [key]: (prev[key] || []).map(item => item.id === activity.id
-          ? {
-              ...item,
-                    title: '已授权：' + approvalChoiceLabel(choice),
-              selectedChoice: choice,
-              responding: false,
-              status: 'completed' as AgentActivityStatus,
-            }
-          : item),
-        }
-        activityBySessionRef.current = next
-        return next
-      })
-      toast.info('授权已提交')
-    } catch (err: any) {
-      setActivityBySession(prev => {
-        const next = {
-          ...prev,
-          [key]: (prev[key] || []).map(item => item.id === activity.id ? { ...item, responding: false } : item),
-        }
-        activityBySessionRef.current = next
-        return next
-      })
-      toast.error(err?.message || '授权提交失败')
-    }
-  }, [toast])
-
-  const renderApprovalActions = (activity: AgentActivityEvent) => {
-    if (activity.type !== 'approval.request' || activity.status !== 'approval') return null
-    const choices = activity.choices && activity.choices.length > 0
-      ? activity.choices
-      : ['once', 'deny']
-    return (
-      <div className="mt-2 flex flex-wrap gap-1.5">
-        {choices.map(choice => {
-          const isDeny = choice === 'deny'
-          return (
-            <button
-              key={choice}
-              type="button"
-              disabled={activity.responding}
-              onClick={() => handleApprovalChoice(activity, choice)}
-              className={'rounded-md border px-2 py-1 text-[11px] font-medium transition-colors disabled:cursor-wait disabled:opacity-60 ' + (
-                isDeny
-                  ? 'border-accent-red/25 bg-white text-accent-red hover:bg-accent-red/5'
-                  : 'border-accent-blue/25 bg-white text-accent-blue hover:bg-accent-blue/5'
-              )}
-            >
-              {activity.responding ? '提交中...' : approvalChoiceLabel(choice)}
-            </button>
-          )
-        })}
-      </div>
-    )
-  }
-
-  const renderActivityRows = (events: AgentActivityEvent[]) => (
-    <>
-      {events.map(activity => (
-        <div key={activity.id} className="flex min-w-0 items-start gap-2 text-xs">
-          <span className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center">
-            {renderActivityIcon(activity)}
-          </span>
-          <span className="min-w-0 flex-1">
-            <span className="block truncate font-medium text-light-text">{activity.title}</span>
-            {activity.detail && (
-              <span className="mt-0.5 block line-clamp-2 break-words text-light-text-secondary">
-                {activity.detail}
-              </span>
-            )}
-            {renderApprovalActions(activity)}
-          </span>
-        </div>
-      ))}
-    </>
-  )
-
-  const renderAgentActivity = (events = currentActivity, compact = false) => {
-    if (events.length === 0) return null
-    return (
-      <div className={(compact ? 'mt-2' : 'mb-3') + ' space-y-1.5 rounded-lg border border-light-border bg-light-card-hover/55 px-3 py-2'}>
-        <div className="mb-1 flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-normal text-light-text-secondary">
-          <Bot size={12} />
-          Agent 正在执行
-        </div>
-        {renderActivityRows(events)}
-      </div>
-    )
-  }
-
-  const toggleActivityArchive = useCallback((archiveId: string) => {
-    const key = activeSessionKeyRef.current
-    if (!key) return
-    setActivityArchivesBySession(prev => {
-      const archives = (prev[key] || []).map(item => item.id === archiveId ? { ...item, expanded: !item.expanded } : item)
-      saveActivityArchives(key, archives)
-      return { ...prev, [key]: archives }
-    })
-  }, [])
-
-  const toggleArchiveTools = useCallback((archiveId: string) => {
-    const key = activeSessionKeyRef.current
-    if (!key) return
-    setActivityArchivesBySession(prev => {
-      const archives = (prev[key] || []).map(item => item.id === archiveId ? { ...item, toolEventsExpanded: !item.toolEventsExpanded } : item)
-      saveActivityArchives(key, archives)
-      return { ...prev, [key]: archives }
-    })
-  }, [])
-
-  const renderActivityArchive = (archive?: AgentActivityArchive) => {
-    if (!archive || (archive.events.length === 0 && !(archive.thoughts?.length))) return null
-    return (
-      <div className="mb-3 border-b border-light-border pb-3">
-        <button
-          type="button"
-          onClick={() => toggleActivityArchive(archive.id)}
-          className="flex items-center gap-1.5 text-xs text-light-text-secondary transition-colors hover:text-light-text"
-        >
-          <span>
-            {archive.durationReliable === false
-              ? '已处理'
-              : '已处理 ' + formatActivityDuration(archive.endedAt - archive.startedAt)}
-          </span>
-          <ChevronRight
-            size={13}
-            className={'transition-transform ' + (archive.expanded ? 'rotate-90' : '')}
-          />
-        </button>
-        {archive.expanded && (
-          <div className="mt-3 space-y-3">
-            {archive.thoughts?.map((thought, index) => (
-              <p key={archive.id + ':thought:' + index} className="text-sm leading-relaxed text-light-text">
-                {thought}
-              </p>
-            ))}
-            {archive.events.length > 0 && (
-              <div>
-                <button
-                  type="button"
-                  onClick={() => toggleArchiveTools(archive.id)}
-                  className="flex items-center gap-1.5 text-xs text-light-text-secondary transition-colors hover:text-light-text"
-                >
-                  <Wrench size={12} />
-                  <span>运行了 {archive.events.length} 个命令</span>
-                  <ChevronRight
-                    size={13}
-                    className={'transition-transform ' + (archive.toolEventsExpanded ? 'rotate-90' : '')}
-                  />
-                </button>
-                {archive.toolEventsExpanded && renderAgentActivity(archive.events, true)}
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-    )
-  }
 
   const renderComposer = (hero = false) => (
     <div className={hero ? 'relative rounded-[26px] border border-light-border bg-white p-3 shadow-lg shadow-slate-200/80' : 'relative mx-auto max-w-5xl rounded-[26px] border border-light-border bg-white p-3 shadow-lg shadow-slate-200/70'}>

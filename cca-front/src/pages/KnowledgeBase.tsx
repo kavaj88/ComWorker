@@ -147,10 +147,6 @@ type EditorFileState = {
   lastSavedAt: string | null
 }
 
-function trimSlashes(value: string): string {
-  return value.replace(/[\\/]+$/, '')
-}
-
 function knowledgeRoot(_agent: AgentInfo | undefined, agentId: string): string {
   return `profiles/${agentId}/workspace/knowledge`
 }

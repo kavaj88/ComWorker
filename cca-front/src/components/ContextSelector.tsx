@@ -24,6 +24,14 @@ interface ContextSelectorProps {
   onClear: () => void
 }
 
+interface ContextItem {
+  id: string
+  name: string
+  desc?: string
+  needsAuth?: boolean
+  enabled?: boolean
+}
+
 const CATEGORIES: { key: ContextCategory; label: string; icon: typeof Bot }[] = [
   { key: 'expert', label: '专家', icon: Bot },
   { key: 'skill', label: '技能', icon: Wrench },
@@ -31,7 +39,7 @@ const CATEGORIES: { key: ContextCategory; label: string; icon: typeof Bot }[] = 
 ]
 
 function agentDisplayName(a: AgentInfo): string {
-  return a.identity?.name || a.displayName || a.name || a.id
+  return a.identity?.name || a.name || a.id
 }
 
 export default function ContextSelector({ agents, value, onSelect, onClear }: ContextSelectorProps) {
@@ -67,7 +75,7 @@ export default function ContextSelector({ agents, value, onSelect, onClear }: Co
     }
   }, [activeCat, skills.length, skillsLoading, connectors.length, connectorsLoading])
 
-  const filtered = useMemo(() => {
+  const filtered = useMemo<ContextItem[]>(() => {
     const q = query.trim().toLowerCase()
     if (activeCat === 'expert') {
       return expertList
@@ -91,7 +99,7 @@ export default function ContextSelector({ agents, value, onSelect, onClear }: Co
   }, [activeCat, query, expertList, skills, connectors])
 
   const handlePick = useCallback(
-    (item: { id: string; name: string; desc?: string; needsAuth?: boolean; enabled?: boolean }) => {
+    (item: ContextItem) => {
       // 连接器以管理端为准：未启用的不可在选择器里打开，也不允许前端自动 enable。
       if (activeCat === 'connector' && item.enabled === false) {
         return

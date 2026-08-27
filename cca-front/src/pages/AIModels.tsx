@@ -334,7 +334,6 @@ export default function AIModels() {
                 {models.length > 0 && (
                   <div className="border-t border-light-border">
                     {models.map((model, i) => {
-                      const fullId = name === 'platform' ? model.id : `${name}/${model.id}`
                       return (
                         <div
                           key={model.id}

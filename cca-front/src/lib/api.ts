@@ -223,6 +223,11 @@ export interface SessionDetail {
     content: string
     timestamp: string | null
     model?: string
+    reasoning_content?: string
+    hasReasoning?: boolean
+    processSteps?: import('../components/ProcessCard.tsx').ProcessStep[]
+    tool_calls?: unknown[]
+    tool_call_id?: string
   }>
   created_at: string | null
   updated_at: string | null
