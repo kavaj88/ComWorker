@@ -66,6 +66,11 @@ class OfflineTemplatePolicyTests(unittest.TestCase):
             r"rm -rf /var/lib/apt/lists/\*\s*\n\s*RUN pip3 install",
         )
 
+    def test_manage_image_listens_on_container_loopback_and_network(self):
+        dockerfile = (ROOT / "manage_front" / "Dockerfile").read_text(encoding="utf-8")
+
+        self.assertIn("ENV HOSTNAME=0.0.0.0", dockerfile)
+
 
 class OfflinePackageHelperTests(unittest.TestCase):
     def test_hermes_image_context_contains_frozen_lockfile(self):
