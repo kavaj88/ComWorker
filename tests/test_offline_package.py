@@ -1,4 +1,6 @@
 import importlib.util
+import json
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -35,8 +37,8 @@ class OfflineTemplatePolicyTests(unittest.TestCase):
     def test_compose_keeps_internal_services_private_and_healthy(self):
         compose = self.read_template("compose.yml")
 
-        self.assertIn("BUILTIN_SKILLS_VOLUME: comworker-builtin-skills", compose)
-        self.assertIn("name: comworker-builtin-skills", compose)
+        self.assertIn("BUILTIN_SKILLS_VOLUME: comworker-offline-builtin-skills", compose)
+        self.assertIn("name: comworker-offline-builtin-skills", compose)
         self.assertNotIn('"15432:5432"', compose)
         self.assertNotIn('"8080:8080"', compose)
         self.assertGreaterEqual(compose.count("healthcheck:"), 4)
@@ -54,9 +56,68 @@ class OfflineTemplatePolicyTests(unittest.TestCase):
         self.assertIn("docker compose", shell)
         self.assertIn("docker load", powershell)
         self.assertIn("Test-Path", powershell)
-        self.assertIn("$env:ADMIN_PASSWORD = Get-Content -Raw secrets/admin_password", powershell)
+        self.assertIn("$env:ADMIN_PASSWORD = Get-Content -Raw", powershell)
         self.assertIn("$Compose = @('compose'", powershell)
         self.assertIn("Invoke-Docker @Compose up -d", powershell)
+
+    def test_customer_env_does_not_pin_release_version(self):
+        env_example = self.read_template("env.example")
+        compose = self.read_template("compose.yml")
+
+        self.assertNotIn("COMWORKER_VERSION=", env_example)
+        self.assertNotIn("${COMWORKER_VERSION", compose)
+        self.assertGreaterEqual(compose.count(":__COMWORKER_VERSION__"), 5)
+
+    def test_installers_never_delete_existing_database_volume(self):
+        shell = self.read_template("install.sh")
+        powershell = self.read_template("install.ps1")
+
+        self.assertNotIn("docker volume rm", shell)
+        self.assertNotIn("docker volume rm", powershell)
+        self.assertIn(".comworker-install.json", shell)
+        self.assertIn(".comworker-install.json", powershell)
+        self.assertIn("已有数据卷", shell)
+        self.assertIn("已有数据卷", powershell)
+
+    def test_installers_use_manifest_image_ids_and_url_safe_passwords(self):
+        shell = self.read_template("install.sh")
+        powershell = self.read_template("install.ps1")
+
+        self.assertIn("manifest_image_id", shell)
+        self.assertIn("docker image inspect --format '{{.Id}}'", shell)
+        self.assertIn('tr "+/" "-_"', shell)
+        self.assertIn("Get-ManifestImageId", powershell)
+        self.assertIn(".Id", powershell)
+        self.assertIn(".Replace('+', '-').Replace('/', '_').TrimEnd('=')", powershell)
+
+    def test_upgrade_requires_package_path_and_complete_backup(self):
+        shell = self.read_template("comworker.sh")
+        powershell = self.read_template("comworker.ps1")
+
+        self.assertIn('upgrade_package="${2:?', shell)
+        self.assertIn("backup_all", shell)
+        self.assertIn("BACKUP_SOURCE_DIR", shell)
+        self.assertIn("hermes-data-", shell)
+        self.assertIn("backup-manifest.json", shell)
+        self.assertIn("database.dump", shell)
+        self.assertIn("checksums.sha256", shell)
+        self.assertIn("请输入 RESTORE 确认", shell)
+        self.assertNotIn("docker image rm", shell)
+
+        self.assertIn("[string]$PackagePath", powershell)
+        self.assertIn("Backup-ComWorker", powershell)
+        self.assertIn("hermes-data-", powershell)
+        self.assertIn("backup-manifest.json", powershell)
+        self.assertIn("database.dump", powershell)
+        self.assertIn("请输入 RESTORE 确认", powershell)
+        self.assertNotIn("docker image rm", powershell)
+
+    def test_upgrade_installers_create_backup_before_starting_new_release(self):
+        shell = self.read_template("install.sh")
+        powershell = self.read_template("install.ps1")
+
+        self.assertLess(shell.index("BACKUP_SOURCE_DIR"), shell.index('info "启动 ComWorker'))
+        self.assertLess(powershell.index("comworker.ps1"), powershell.index('Write-Host "==> 启动 ComWorker'))
 
     def test_bridge_caches_system_packages_before_python_packages(self):
         dockerfile = (ROOT / "hermes-agent" / "Dockerfile.bridge").read_text(encoding="utf-8")
@@ -70,6 +131,13 @@ class OfflineTemplatePolicyTests(unittest.TestCase):
         dockerfile = (ROOT / "manage_front" / "Dockerfile").read_text(encoding="utf-8")
 
         self.assertIn("ENV HOSTNAME=0.0.0.0", dockerfile)
+
+    def test_customer_manual_is_versioned_and_third_party_notice_is_packaged(self):
+        manual = self.read_template("docs/安装说明书.md")
+
+        self.assertIn("__COMWORKER_VERSION__", manual)
+        self.assertNotIn("ComWorker-1.0.2-offline-amd64.zip", manual)
+        self.assertTrue((TEMPLATE_DIR / "THIRD_PARTY_NOTICES.md").is_file())
 
 
 class OfflinePackageHelperTests(unittest.TestCase):
@@ -204,6 +272,70 @@ class OfflinePackageHelperTests(unittest.TestCase):
             self.assertTrue((root / ".env.example").is_file())
             self.assertFalse((root / ".env").exists())
             self.assertEqual(package.find_forbidden_entries(root), [])
+
+    def test_checksum_verification_reports_missing_and_modified_files(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "present.txt").write_text("original", encoding="utf-8")
+            digest = package.sha256_file(root / "present.txt")
+            (root / "checksums.sha256").write_text(
+                f"{digest}  present.txt\n{digest}  missing.txt\n",
+                encoding="utf-8",
+            )
+
+            self.assertEqual(package.verify_checksums(root), ["missing: missing.txt"])
+
+            (root / "present.txt").write_text("changed", encoding="utf-8")
+            self.assertEqual(
+                package.verify_checksums(root),
+                ["mismatch: present.txt", "missing: missing.txt"],
+            )
+
+    def test_source_metadata_marks_dirty_build_unpublishable(self):
+        responses = [
+            subprocess.CompletedProcess(["git"], 0, "a" * 40 + "\n", ""),
+            subprocess.CompletedProcess(["git"], 0, " M platform/app/main.py\n", ""),
+        ]
+        with mock.patch.object(package, "run", side_effect=responses):
+            metadata = package.source_metadata(allow_dirty=True)
+
+        self.assertEqual(metadata["commit"], "a" * 40)
+        self.assertTrue(metadata["dirty"])
+        self.assertFalse(metadata["publishable"])
+
+    def test_source_metadata_rejects_dirty_release_build(self):
+        responses = [
+            subprocess.CompletedProcess(["git"], 0, "b" * 40 + "\n", ""),
+            subprocess.CompletedProcess(["git"], 0, " M delivery/offline/install.sh\n", ""),
+        ]
+        with mock.patch.object(package, "run", side_effect=responses):
+            with self.assertRaisesRegex(package.PackageError, "工作区存在未提交改动"):
+                package.source_metadata(allow_dirty=False)
+
+    def test_manifest_contains_source_metadata(self):
+        with tempfile.TemporaryDirectory() as directory:
+            work = Path(directory) / "work"
+            work.mkdir()
+            archive = Path(directory) / "comworker-images.tar.zst"
+            archive.write_bytes(b"fake-zstd-archive")
+            source = {
+                "commit": "c" * 40,
+                "dirty": False,
+                "publishable": True,
+            }
+
+            root = package.create_delivery_tree(
+                work_dir=work,
+                version="1.0.3",
+                platform="linux/amd64",
+                archive=archive,
+                images=[],
+                source=source,
+            )
+            manifest = json.loads((root / "manifest.json").read_text(encoding="utf-8"))
+
+            self.assertEqual(manifest["source"], source)
+            self.assertEqual(package.verify_checksums(root), [])
 
 
 if __name__ == "__main__":

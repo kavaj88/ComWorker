@@ -94,20 +94,46 @@ async def _hermes_to_frontend(config: dict, db=None, user_id=None) -> dict:
 
     providers: dict = {}
 
-    # Platform default model — read-only, no API key exposed
+    # Platform default model — read-only, no API key exposed.
+    # Only surfaced when an explicit default is configured; an empty default
+    # (no global default) intentionally produces no "platform" provider so the
+    # client never offers an unresolvable model.
     if settings.default_model:
         providers["platform"] = {
             "baseUrl": "",
             "api": "openai-completions",
             "apiKey": "",
-            "models": [{"id": settings.default_model, "name": settings.default_model}],
+            "models": [{"id": settings.default_model, "name": settings.default_model, "owner": "admin"}],
             "_system": True,
             "disabled": "platform" in disabled_set,
         }
 
-    # User-added providers
-    custom_providers = config.get("custom_providers") or []
     flat_models: list[dict] = []
+    seen: set = set()
+
+    # Admin-configured platform models (DB: model_provider_configs). Surfaced
+    # FIRST so they win the owner tag and the "· 平台" badge, and so they are
+    # never shadowed by a mirrored in-container copy. They route through
+    # platform-gateway, which resolves the provider from the DB — the key stays
+    # centralized in the platform and is never duplicated into the user container.
+    if db is not None:
+        try:
+            from app.model_config import flatten_enabled_models, get_default_model, list_enabled_providers
+            platform_models = flatten_enabled_models(
+                await list_enabled_providers(db, user_id=user_id), user_id=user_id
+            )
+            for pm in platform_models:
+                pm = dict(pm)
+                pm["disabled"] = _prov_of(pm["id"]) in disabled_set
+                pm["owner"] = "admin"
+                flat_models.append(pm)
+                seen.add(pm["id"])
+        except Exception as e:  # pragma: no cover - degrade gracefully
+            logger.warning("Failed to merge platform models: %s", e)
+
+    # User-added providers (container custom_providers). Skipped when the model
+    # id was already claimed by an admin provider above.
+    custom_providers = config.get("custom_providers") or []
     for cp in custom_providers:
         if not isinstance(cp, dict):
             continue
@@ -115,40 +141,29 @@ async def _hermes_to_frontend(config: dict, db=None, user_id=None) -> dict:
         if not name or name in ("platform", "platform-gateway"):
             continue
         cp_models = cp.get("models") or []
+        cp_display_name = cp.get("display_name") or name
         providers[name] = {
             "baseUrl": cp.get("base_url", ""),
             "api": _API_MODE_TO_API.get(cp.get("api_mode", ""), "openai-completions"),
             "apiKey": cp.get("api_key", ""),
+            "displayName": cp_display_name,
             "models": cp_models,
             "disabled": name in disabled_set,
         }
         for m in cp_models:
             if isinstance(m, dict) and m.get("id"):
+                mid = f"{name}/{m['id']}"
+                if mid in seen:
+                    continue
                 flat_models.append({
-                    "id": f"{name}/{m['id']}",
+                    "id": mid,
                     "name": m.get("name") or m["id"],
+                    "provider": name,
+                    "providerName": cp_display_name,
                     "disabled": name in disabled_set,
+                    "owner": "user",
                 })
-
-    # Merge admin-configured platform models (DB: model_provider_configs) so the
-    # client can surface them. These route through platform-gateway, which resolves
-    # the provider from the DB by the "provider/model" id — so we keep the full
-    # prefixed id (e.g. "tx/hy3-preview") and never strip it.
-    if db is not None:
-        try:
-            from app.model_config import flatten_enabled_models, get_default_model, list_enabled_providers
-            platform_models = flatten_enabled_models(
-                await list_enabled_providers(db, user_id=user_id), user_id=user_id
-            )
-            seen = {m["id"] for m in flat_models}
-            for pm in platform_models:
-                if pm["id"] not in seen:
-                    pm = dict(pm)
-                    pm["disabled"] = _prov_of(pm["id"]) in disabled_set
-                    flat_models.append(pm)
-                    seen.add(pm["id"])
-        except Exception as e:  # pragma: no cover - degrade gracefully
-            logger.warning("Failed to merge platform models: %s", e)
+                seen.add(mid)
 
     # If the user has no own model selection, fall back to the per-user admin
     # default (or platform default restricted to what this user may access).
@@ -405,6 +420,115 @@ async def test_model_connection(
 # Routes
 # ---------------------------------------------------------------------------
 
+async def _sync_admin_providers_into_user(
+    db, user_id: str, config: dict, container_name: str
+) -> dict:
+    """Make sure the user's chat model is resolvable.
+
+    Admin-managed providers live in the platform DB and are routed through
+    ``platform-gateway`` (the API key stays centralized — never duplicated into
+    the user container). This sync:
+
+    1. Strips any stale admin-injected ``custom_providers`` copy left by a
+       previous sync — both from the container volume and the DB user_config —
+       so the key is never exposed back to the client via ``configuredProviders``
+       and routing always goes through the platform.
+    2. When the current default is empty or not resolvable, points it at the
+       first admin provider's first enabled model via ``platform-gateway``.
+
+    User-added providers are left untouched; a default that already routes
+    through a genuine user provider is preserved.
+    """
+    try:
+        from app.model_config import get_api_key, list_enabled_providers
+        admins = await list_enabled_providers(db, user_id=user_id)
+    except Exception:  # noqa: BLE001
+        return config
+    admin_names = {p.id for p in admins}
+    if not admin_names:
+        return config
+
+    cps = config.get("custom_providers") or []
+    local_names = {p.get("name") for p in cps if isinstance(p, dict)}
+    model = config.get("model") or {}
+    default = (model.get("default") or "").strip()
+    provider = (model.get("provider") or "").strip()
+    base_url = (model.get("base_url") or "").strip()
+    default_prov = default.split("/", 1)[0] if "/" in default else ""
+
+    # 1) A default routing through a genuine user-added provider is kept as-is
+    #    (the provider name must NOT be an admin provider — otherwise it is a
+    #    stale in-container copy and must be cleaned).
+    if default and provider in local_names and provider not in admin_names:
+        return config
+
+    # 2) Already routed through the platform. Hermes normalizes
+    #    ``provider: platform-gateway`` after a container restart into
+    #    ``provider: <name>`` + ``base_url: <gateway proxy>`` — recognise both
+    #    forms so we don't rewrite the config on every read. Only stale
+    #    admin-injected copies still get stripped below.
+    via_platform = (
+        provider == "platform-gateway"
+        or (
+            default_prov in admin_names
+            and default_prov not in local_names
+            and base_url
+        )
+    )
+
+    # Strip stale admin-injected in-container provider copies (route via platform).
+    new_cps = [p for p in cps if isinstance(p, dict) and p.get("name") not in admin_names]
+    providers_dict = config.get("providers")
+    new_providers = (
+        {k: v for k, v in providers_dict.items() if k not in admin_names}
+        if isinstance(providers_dict, dict)
+        else None
+    )
+    model_changed = False
+    if not via_platform:
+        # Point the default at the first admin provider's first enabled model,
+        # routed through platform-gateway (key resolved centrally from the DB).
+        for p in admins:
+            if not get_api_key(p):
+                continue
+            for m in (p.models or []):
+                if isinstance(m, dict) and m.get("enabled") is not False and str(m.get("id") or "").strip():
+                    mid = str(m["id"]).strip()
+                    model = dict(model)
+                    model["default"] = f"{p.id}/{mid}"
+                    model["provider"] = "platform-gateway"
+                    model.pop("base_url", None)
+                    model_changed = True
+                    break
+            if model_changed:
+                break
+
+    changed = bool(new_cps != cps or new_providers != providers_dict or model_changed)
+    if changed:
+        config = dict(config)
+        if new_cps:
+            config["custom_providers"] = new_cps
+        else:
+            config.pop("custom_providers", None)
+        if new_providers is not None:
+            config["providers"] = new_providers
+        if model_changed:
+            config["model"] = model
+        try:
+            _write_container_config(container_name, config)
+        except Exception as e:  # noqa: BLE001
+            logger.warning("Lazy sync: failed to write container config: %s", e)
+        try:
+            await _persist_user_config(
+                db, user_id, config,
+                providers_provided=True,
+                default_provided=bool((config.get("model") or {}).get("default")),
+            )
+        except Exception as e:  # noqa: BLE001
+            logger.warning("Lazy sync: failed to persist user_config: %s", e)
+    return config
+
+
 @router.get("/models")
 async def list_models(
     user: User = Depends(get_current_user),
@@ -421,6 +545,9 @@ async def list_models(
     # even while the container volume is mid-rebuild.
     db_uc = await _load_user_config(db, user.id)
     config = _merge_db_user_config(config, db_uc)
+    # Lazy sync: if no custom_providers but admin has configured one for this
+    # user, copy it in so the dropdown/chat actually resolves.
+    config = await _sync_admin_providers_into_user(db, user.id, config, container_name)
     return await _hermes_to_frontend(config, db, user_id=user.id)
 
 

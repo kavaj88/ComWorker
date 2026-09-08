@@ -1032,6 +1032,28 @@ def _classify_400(
             should_fallback=True,
         )
 
+    # Parameter-value out of range (e.g. Volces Ark `max_tokens` capped at
+    # 32768 but hermes default 128000).  Bare "max_tokens" token is part of
+    # _CONTEXT_OVERFLOW_PATTERNS, so without this guard kimi / glm 32k
+    # variants get sent into the compression loop and the retry never
+    # terminates.  The error body looks like:
+    #   {"error":{"code":"InvalidParameter",
+    #             "message":"The parameter `max_tokens` specified in the
+    #                       request is not valid: integer above maximum
+    #                       value, expected a value <= 32768, but got
+    #                       128000 instead.",
+    #             "param":"max_tokens","type":"BadRequest"}}
+    if (
+        error_code_lower == "invalidparameter"
+        and "max_tokens" in error_msg
+        and "not valid" in error_msg
+    ):
+        return result_fn(
+            FailoverReason.format_error,
+            retryable=False,
+            should_fallback=True,
+        )
+
     # Context overflow from 400
     if any(p in error_msg for p in _CONTEXT_OVERFLOW_PATTERNS):
         return result_fn(
@@ -1147,6 +1169,20 @@ def _classify_by_error_code(
             FailoverReason.context_overflow,
             retryable=True,
             should_compress=True,
+        )
+
+    # Volces Ark / Anthropic OpenAI-style gateways surface parameter-value
+    # violations (e.g. ``max_tokens`` above provider cap) as code
+    # ``InvalidParameter``. Must precede the bare "max_tokens" pattern match
+    # in ``_classify_by_message`` so the deterministic 400 isn't rerouted
+    # into the compression loop — the loop will only reproduce the same
+    # rejection on every retry because the requested parameter value never
+    # changes between iterations.
+    if code_lower == "invalidparameter":
+        return result_fn(
+            FailoverReason.format_error,
+            retryable=False,
+            should_fallback=True,
         )
 
     if code_lower == "invalid_encrypted_content":

@@ -11,7 +11,6 @@ import json
 import logging
 import math
 import re
-import uuid
 from datetime import datetime, timezone
 from typing import Any
 from urllib.parse import quote, urlencode
@@ -107,17 +106,124 @@ def _iso_to_ms(value: Any) -> int | None:
         return None
 
 
-def _safe_session_part(value: Any, fallback: str = "default") -> str:
-    text = str(value or "").strip().lower()
-    text = re.sub(r"[^a-z0-9_-]+", "-", text)
-    text = text.strip("-_")
-    return text[:48] or fallback
+_CRON_RUN_SESSION_PREFIX = "cron_"
+_CRON_PREVIEW_MAX_CHARS = 180
+_CRON_PREVIEW_MAX_JOBS = 12
 
 
-def _cron_session_key(agent_id: str, job_name: str) -> str:
-    agent = _safe_session_part(agent_id or "main", "main")
-    name = _safe_session_part(job_name or "cron", "cron")
-    return f"agent:{agent}:cron-{name}-{uuid.uuid4().hex[:6]}"
+def _cron_run_session_job_id(session_id: str) -> str | None:
+    """Map a Hermes cron run session id back to the job that produced it.
+
+    ``cron/scheduler.run_job`` persists every execution under a session named
+    ``cron_<job_id>_<YYYYmmdd>_<HHMMSS>`` — a brand new session per run. There
+    is no job -> session pointer on the job record itself, so the only way to
+    surface "where did my scheduled task's output go?" is to recognise that
+    naming convention in the session index.
+    """
+    if not session_id.startswith(_CRON_RUN_SESSION_PREFIX):
+        return None
+    rest = session_id[len(_CRON_RUN_SESSION_PREFIX):]
+    parts = rest.rsplit("_", 2)
+    if len(parts) != 3:
+        return None
+    job_id, date_part, time_part = parts
+    if not job_id or len(date_part) != 8 or len(time_part) != 6:
+        return None
+    if not (date_part.isdigit() and time_part.isdigit()):
+        return None
+    return job_id
+
+
+async def _latest_cron_run_sessions(base_url: str) -> dict[str, dict[str, Any]]:
+    """Return ``{job_id: {"session_id", "title", "updated_at"}}`` (newest run)."""
+    try:
+        response = await _hermes_request("GET", base_url, "/api/hermes/sessions?limit=200")
+    except Exception as exc:  # pragma: no cover - defensive, listing must not fail
+        logger.debug("hermes_cron_run_sessions_unavailable error=%s", exc)
+        return {}
+    if response.status_code >= 400:
+        logger.debug("hermes_cron_run_sessions_failed status=%s", response.status_code)
+        return {}
+    payload = _safe_json_payload(response)
+    sessions = payload.get("sessions") if isinstance(payload, dict) else None
+    if not isinstance(sessions, list):
+        return {}
+
+    latest: dict[str, dict[str, Any]] = {}
+    for item in sessions:
+        if not isinstance(item, dict):
+            continue
+        session_id = str(item.get("session_id") or "").strip()
+        job_id = _cron_run_session_job_id(session_id)
+        if not job_id:
+            continue
+        updated_at = str(
+            item.get("updated_at") or item.get("last_message_at") or item.get("created_at") or ""
+        )
+        current = latest.get(job_id)
+        if current and str(current.get("updated_at") or "") >= updated_at:
+            continue
+        latest[job_id] = {
+            "session_id": session_id,
+            "title": item.get("title") or session_id,
+            "updated_at": updated_at,
+        }
+    return latest
+
+
+def _cron_output_preview(messages: Any) -> str | None:
+    """Last non-empty assistant message of a cron run session, compacted."""
+    if not isinstance(messages, list):
+        return None
+    for message in reversed(messages):
+        if not isinstance(message, dict) or message.get("role") != "assistant":
+            continue
+        content = message.get("content")
+        if not isinstance(content, str):
+            continue
+        text = " ".join(content.split())
+        if not text:
+            continue
+        if len(text) > _CRON_PREVIEW_MAX_CHARS:
+            text = f"{text[:_CRON_PREVIEW_MAX_CHARS].rstrip()}…"
+        return text
+    return None
+
+
+async def _cron_run_previews(
+    base_url: str,
+    jobs: list[dict[str, Any]],
+    run_sessions: dict[str, dict[str, Any]],
+) -> dict[str, str]:
+    """Fetch a short result preview for the latest run of each job."""
+    targets: list[tuple[str, str]] = []
+    for job in jobs:
+        job_id = str(job.get("id") or "")
+        if not job_id or job.get("comworker_last_output"):
+            continue
+        session = run_sessions.get(job_id)
+        if not session:
+            continue
+        targets.append((job_id, str(session.get("session_id") or "")))
+    targets = [(job_id, sid) for job_id, sid in targets if sid][:_CRON_PREVIEW_MAX_JOBS]
+    if not targets:
+        return {}
+
+    async def fetch(job_id: str, session_id: str) -> tuple[str, str | None]:
+        try:
+            response = await _hermes_request(
+                "GET", base_url, f"/api/hermes/sessions/{quote(session_id, safe='')}"
+            )
+        except Exception:  # pragma: no cover - defensive
+            return job_id, None
+        if response.status_code >= 400:
+            return job_id, None
+        payload = _safe_json_payload(response)
+        messages = payload.get("messages") if isinstance(payload, dict) else None
+        return job_id, _cron_output_preview(messages)
+
+    results = await asyncio.gather(*(fetch(job_id, sid) for job_id, sid in targets))
+    return {job_id: preview for job_id, preview in results if preview}
 
 
 def _hermes_model_to_comworker_model(item: Any) -> dict[str, Any] | None:
@@ -134,7 +240,11 @@ def _hermes_model_to_comworker_model(item: Any) -> dict[str, Any] | None:
     }
 
 
-def _hermes_job_to_comworker_cron_job(job: dict[str, Any]) -> dict[str, Any]:
+def _hermes_job_to_comworker_cron_job(
+    job: dict[str, Any],
+    run_session: dict[str, Any] | None = None,
+    run_output: str | None = None,
+) -> dict[str, Any]:
     schedule = job.get("schedule")
     if not isinstance(schedule, dict):
         schedule = {}
@@ -150,6 +260,14 @@ def _hermes_job_to_comworker_cron_job(job: dict[str, Any]) -> dict[str, Any]:
     elif schedule_kind == "once":
         schedule_expr = schedule.get("run_at")
 
+    # Hermes ignores ComWorker's ``comworker_session_key`` hint on create and
+    # writes every execution into its own ``cron_<job_id>_<ts>`` session. Prefer
+    # that real run session so the console can open the conversation that
+    # actually holds the output instead of an empty placeholder.
+    run_session = run_session or {}
+    session_key = job.get("comworker_session_key") or run_session.get("session_id") or None
+    session_title = job.get("comworker_session_title") or run_session.get("title") or None
+
     return {
         "id": str(job.get("id") or ""),
         "name": job.get("name") or str(job.get("id") or ""),
@@ -159,11 +277,16 @@ def _hermes_job_to_comworker_cron_job(job: dict[str, Any]) -> dict[str, Any]:
         "schedule_expr": schedule_expr,
         "schedule_every_ms": schedule_every_ms,
         "message": job.get("prompt") or "",
+        "model": job.get("model") or None,
+        "skills": job.get("skills")
+        if isinstance(job.get("skills"), list)
+        else ([job["skill"]] if job.get("skill") else []),
         "deliver": bool(job.get("deliver") and job.get("deliver") != "local"),
         "channel": None if job.get("deliver") in (None, "local") else str(job.get("deliver")),
         "to": None,
-        "session_key": job.get("comworker_session_key") or job.get("session_key") or None,
-        "last_output": job.get("comworker_last_output") or None,
+        "session_key": session_key,
+        "session_title": session_title,
+        "last_output": job.get("comworker_last_output") or run_output or None,
         "last_output_at_ms": _iso_to_ms(job.get("comworker_last_output_at")),
         "last_delivery_error": job.get("last_delivery_error"),
         "next_run_at_ms": _iso_to_ms(job.get("next_run_at")),
@@ -191,19 +314,14 @@ def _comworker_cron_schedule_to_hermes(body: dict[str, Any]) -> str:
     )
 
 
-async def _ensure_hermes_cron_session(base_url: str, session_key: str, title: str) -> None:
-    payload = {"session_key": session_key, "title": title}
-    try:
-        response = await _hermes_request("POST", base_url, "/api/hermes/sessions", json=payload)
-        if response.status_code >= 400:
-            logger.warning(
-                "hermes_cron_session_create_failed status=%s session_key=%s body=%s",
-                response.status_code,
-                session_key,
-                response.text[:300],
-            )
-    except Exception as exc:
-        logger.warning("hermes_cron_session_create_failed session_key=%s error=%s", session_key, exc)
+async def _hermes_cron_result_context(
+    base_url: str,
+    jobs: list[dict[str, Any]],
+) -> tuple[dict[str, dict[str, Any]], dict[str, str]]:
+    run_sessions = await _latest_cron_run_sessions(base_url)
+    if not run_sessions:
+        return {}, {}
+    return run_sessions, await _cron_run_previews(base_url, jobs, run_sessions)
 
 
 def _safe_json_payload(response: httpx.Response) -> Any:
@@ -279,32 +397,63 @@ async def _proxy_hermes_cron(path: str, request: Request, base_url: str) -> JSON
     if parts == ["cron", "jobs"] and request.method == "GET":
         response = await _hermes_request("GET", base_url, f"/api/jobs{_query_string(request)}")
         payload = _safe_json_payload(response)
-        jobs = payload.get("jobs") if isinstance(payload, dict) else []
+        raw_jobs = payload.get("jobs") if isinstance(payload, dict) else []
+        jobs = [job for job in raw_jobs if isinstance(job, dict)]
+        run_sessions, run_outputs = await _hermes_cron_result_context(base_url, jobs)
         return JSONResponse(
             status_code=response.status_code,
             content=[
-                _hermes_job_to_comworker_cron_job(job)
+                _hermes_job_to_comworker_cron_job(
+                    job,
+                    run_sessions.get(str(job.get("id") or "")),
+                    run_outputs.get(str(job.get("id") or "")),
+                )
                 for job in jobs
-                if isinstance(job, dict)
             ],
         )
 
     if parts == ["cron", "jobs"] and request.method == "POST":
         body = json.loads((await request.body()) or b"{}")
         name = body.get("name") or "cron job"
-        agent_id = body.get("agentId") or body.get("agent_id") or "main"
-        session_key = body.get("sessionKey") or body.get("session_key") or _cron_session_key(str(agent_id), str(name))
-        session_title = body.get("sessionTitle") or body.get("session_title") or str(name)
-        await _ensure_hermes_cron_session(base_url, str(session_key), str(session_title))
+        # NOTE: Hermes does not accept a ComWorker session key here — it drops
+        # unknown fields and writes each run into its own ``cron_<job_id>_<ts>``
+        # session. Creating a placeholder session up front used to leave an
+        # empty "chat" in the sidebar forever, so we no longer pre-create one.
         hermes_body = {
             "name": name,
             "prompt": body.get("message") or "",
             "schedule": _comworker_cron_schedule_to_hermes(body),
             "deliver": body.get("channel") if body.get("deliver") and body.get("channel") else "local",
-            "comworker_session_key": session_key,
-            "comworker_session_title": session_title,
         }
+        # Forward optional execution context so a cron job can pin a model and
+        # preload skills (Hermes honours both on run). Left unset => runtime
+        # default model / no preloaded skills.
+        if body.get("model"):
+            hermes_body["model"] = body["model"]
+        if body.get("skills"):
+            hermes_body["skills"] = body["skills"]
         response = await _hermes_request("POST", base_url, "/api/jobs", json=hermes_body)
+        payload = _safe_json_payload(response)
+        job = payload.get("job") if isinstance(payload, dict) else None
+        return JSONResponse(
+            status_code=response.status_code,
+            content=_hermes_job_to_comworker_cron_job(job) if isinstance(job, dict) else payload,
+        )
+
+    if len(parts) == 3 and parts[:2] == ["cron", "jobs"] and request.method in {"PUT", "PATCH"}:
+        body = json.loads((await request.body()) or b"{}")
+        # Map ComWorker schedule fields to Hermes schedule string, then pass
+        # the raw Hermes-whitelisted fields through.
+        if any(k in body for k in ("every_seconds", "cron_expr", "at_iso")):
+            body["schedule"] = _comworker_cron_schedule_to_hermes(body)
+        hermes_body = {
+            k: v
+            for k, v in body.items()
+            if k in {"name", "schedule", "prompt", "deliver", "skills", "skill", "repeat", "enabled", "model"}
+        }
+        response = await _hermes_request(
+            "PATCH", base_url, f"/api/jobs/{parts[2]}", json=hermes_body
+        )
         payload = _safe_json_payload(response)
         job = payload.get("job") if isinstance(payload, dict) else None
         return JSONResponse(
@@ -337,6 +486,109 @@ async def _proxy_hermes_cron(path: str, request: Request, base_url: str) -> JSON
         )
 
     return JSONResponse(status_code=404, content={"detail": "Unsupported Hermes cron compatibility path"})
+
+
+def _collect_weixin_state_sync(container_name: str) -> dict:
+    """Best-effort read of the user's Hermes runtime Weixin binding state.
+
+    - ``configured``: the runtime's dotenv ($HERMES_HOME/.env, i.e.
+      /opt/data/.env — NOT ~/.hermes/.env) holds WEIXIN_ACCOUNT_ID +
+      WEIXIN_TOKEN. The QR login script writes them there.
+    - ``live``: we set this equal to ``configured``. The runtime loads dotenv
+      only at startup, so in the normal flow (scan -> write /opt/data/.env ->
+      restart the runtime) ``configured`` already implies the adapter is up.
+      The previous ``/proc/1/environ`` probe was wrong: that file is a frozen
+      execve snapshot that does not reflect load_dotenv(), so it always missed
+      credentials loaded from the file.
+    """
+    out: dict = {"configured": False, "live": False, "account_id": "", "home_channel": ""}
+    try:
+        container = get_docker_container(container_name)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("channels status: cannot resolve container %s: %s", container_name, exc)
+        return out
+    try:
+        # Read the *real* dotenv. HERMES_HOME is /opt/data in this deployment;
+        # fall back to ~/.hermes/.env only if the canonical path is missing.
+        res = container.exec_run(
+            [
+                "sh",
+                "-lc",
+                "for f in /opt/data/.env ~/.hermes/.env; do [ -f \"$f\" ] && cat \"$f\"; done 2>/dev/null || true",
+            ],
+            stdout=True,
+            stderr=False,
+        )
+        raw = res.output if hasattr(res, "output") else b""
+        text = raw.decode("utf-8", "replace") if isinstance(raw, (bytes, bytearray)) else ""
+        env: dict[str, str] = {}
+        for line in text.splitlines():
+            line = line.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            key, _, value = line.partition("=")
+            env[key.strip()] = value.strip()
+        account_id = env.get("WEIXIN_ACCOUNT_ID", "")
+        token = env.get("WEIXIN_TOKEN", "")
+        out["account_id"] = account_id
+        out["home_channel"] = env.get("WEIXIN_HOME_CHANNEL", "")
+        out["configured"] = bool(account_id and token)
+        # configured implies the runtime is/will-be live (it restarts post-scan).
+        out["live"] = out["configured"]
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("channels status: read failed for %s: %s", container_name, exc)
+    return out
+
+
+async def _hermes_channels_status(user: User) -> JSONResponse:
+    container_name = f"{settings.dedicated_runtime_container_name_prefix}-{user.id[:8]}"
+    state = await asyncio.to_thread(_collect_weixin_state_sync, container_name)
+
+    channel_order: list[str] = []
+    channel_accounts: dict[str, list] = {}
+    channels: dict[str, dict] = {}
+    channel_meta: list[dict] = []
+    configured_types: list[str] = []
+    channel_labels: dict[str, str] = {}
+
+    if state["configured"]:
+        channel_order.append("weixin")
+        configured_types.append("weixin")
+        channel_labels["weixin"] = "微信"
+        channels["weixin"] = {"type": "weixin", "label": "微信", "configured": True}
+        channel_meta.append({"type": "weixin", "label": "微信", "configured": True})
+        channel_accounts["weixin"] = [
+            {
+                "accountId": state["account_id"],
+                "name": state["home_channel"] or state["account_id"],
+                "configured": True,
+                "connected": state["live"],
+                "running": state["live"],
+            }
+        ]
+
+    return JSONResponse(
+        {
+            "ts": int(datetime.now(timezone.utc).timestamp() * 1000),
+            "channelOrder": channel_order,
+            "channelLabels": channel_labels,
+            "channelDetailLabels": {},
+            "channelSystemImages": {},
+            "channelMeta": channel_meta,
+            "channels": channels,
+            "channelAccounts": channel_accounts,
+            "channelDefaultAccountId": {"weixin": state["account_id"]} if state["configured"] else {},
+            "configuredTypes": configured_types,
+            "runtime": "hermes",
+        }
+    )
+
+
+async def _hermes_channels_configured(user: User) -> JSONResponse:
+    container_name = f"{settings.dedicated_runtime_container_name_prefix}-{user.id[:8]}"
+    state = await asyncio.to_thread(_collect_weixin_state_sync, container_name)
+    channels = ["weixin"] if state["configured"] else []
+    return JSONResponse({"success": True, "channels": channels, "runtime": "hermes"})
 
 
 def _hermes_empty_compat(path: str, request: Request) -> JSONResponse | None:
@@ -662,6 +914,10 @@ async def proxy_http(
     """Forward HTTP requests to the user's runtime container."""
     path = path.strip("/")
     if _dedicated_runtime_backend() == "hermes":
+        if path == "channels/status" and request.method == "GET":
+            return await _hermes_channels_status(user)
+        if path == "channels/configured" and request.method == "GET":
+            return await _hermes_channels_configured(user)
         empty_compat = _hermes_empty_compat(path, request)
         if empty_compat is not None:
             return empty_compat

@@ -10,14 +10,10 @@ import {
   deleteConnector,
   setConnectorDefault,
   setConnectorMandatory,
-  pushConnectorToAllUsers,
-  adminInstallConnectorForUser,
   pushConnectorToUsers,
   type Connector,
 } from "@/lib/api";
-import UserPickerModal from "@/components/UserPickerModal";
 import PushUsersModal from "@/components/PushUsersModal";
-import type { UserSummary } from "@/types";
 
 export default function ConnectorsCatalogPage() {
   const [connectors, setConnectors] = useState<Connector[]>([]);
@@ -26,10 +22,9 @@ export default function ConnectorsCatalogPage() {
   const [message, setMessage] = useState("");
   const [editing, setEditing] = useState<Connector | null>(null);
   const [showForm, setShowForm] = useState(false);
-  const [busyId, setBusyId] = useState<string | null>(null);
+  const [batchBusy, setBatchBusy] = useState(false);
   const [filter, setFilter] = useState<"all" | "active" | "inactive">("all");
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [showUserPicker, setShowUserPicker] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [showPushUsers, setShowPushUsers] = useState(false);
 
   async function load() {
@@ -62,69 +57,117 @@ export default function ConnectorsCatalogPage() {
     });
   }, [connectors, query, filter]);
 
+  // ── 多选状态 ──────────────────────────────────────────────────────────
   const selected = useMemo(
-    () => connectors.find((c) => c.id === selectedId) || null,
-    [connectors, selectedId],
+    () => connectors.filter((c) => selectedIds.has(c.id)),
+    [connectors, selectedIds],
   );
+  const singleSelected = selected.length === 1 ? selected[0] : null;
+  const allSelected = filtered.length > 0 && filtered.every((c) => selectedIds.has(c.id));
+  const someSelected = filtered.some((c) => selectedIds.has(c.id));
+  const busy = batchBusy;
 
-  async function toggleDefault(c: Connector) {
-    setBusyId(c.id);
-    try {
-      await setConnectorDefault(c.id, !c.is_default);
-      setConnectors((cs) => cs.map((x) => (x.id === c.id ? { ...x, is_default: !x.is_default } : x)));
-    } finally {
-      setBusyId(null);
-    }
+  function toggleSelect(id: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
   }
-  async function toggleMandatory(c: Connector) {
-    setBusyId(c.id);
-    try {
-      await setConnectorMandatory(c.id, !c.is_mandatory);
-      setConnectors((cs) => cs.map((x) => (x.id === c.id ? { ...x, is_mandatory: !x.is_mandatory } : x)));
-    } finally {
-      setBusyId(null);
-    }
+  function toggleSelectAll() {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (filtered.length > 0 && filtered.every((c) => next.has(c.id))) {
+        for (const c of filtered) next.delete(c.id);
+      } else {
+        for (const c of filtered) next.add(c.id);
+      }
+      return next;
+    });
   }
-  async function remove(c: Connector) {
-    if (!confirm(`确定删除连接器「${c.display_name}」？`)) return;
-    await deleteConnector(c.id);
-    setConnectors((cs) => cs.filter((x) => x.id !== c.id));
+  function clearSelection() {
+    setSelectedIds(new Set());
   }
-  async function push(c: Connector) {
-    setBusyId(c.id);
+
+  async function handleToggleDefault() {
+    if (selected.length === 0) return;
+    setBatchBusy(true);
+    setMessage("");
     try {
-      const res = await pushConnectorToAllUsers(c.id);
-      setMessage(
-        `已推送「${c.display_name}」：${res.pushed}/${res.total} 成功` +
-          (res.failed.length ? `，${res.failed.length} 失败` : ""),
+      const target = !selected.every((c) => c.is_default);
+      for (const c of selected) {
+        if (c.is_default === target) continue;
+        await setConnectorDefault(c.id, target);
+      }
+      setConnectors((cs) =>
+        cs.map((x) => (selectedIds.has(x.id) ? { ...x, is_default: target } : x)),
       );
+      setMessage(`已将 ${selected.length} 个连接器设为${target ? "默认启用" : "非默认"}`);
     } catch (e) {
-      setMessage(e instanceof Error ? e.message : "推送失败");
+      setMessage(e instanceof Error ? e.message : "操作失败");
     } finally {
-      setBusyId(null);
+      setBatchBusy(false);
     }
   }
-  async function assignToUser(user: UserSummary) {
-    if (!selected) return;
-    setShowUserPicker(false);
-    setBusyId(selected.id);
+
+  async function handleToggleMandatory() {
+    if (selected.length === 0) return;
+    setBatchBusy(true);
+    setMessage("");
     try {
-      const res = await adminInstallConnectorForUser(user.id, selected.id);
-      setMessage(`已将连接器「${selected.display_name}」代装给 ${user.username}`);
+      const target = !selected.every((c) => c.is_mandatory);
+      for (const c of selected) {
+        if (c.is_mandatory === target) continue;
+        await setConnectorMandatory(c.id, target);
+      }
+      setConnectors((cs) =>
+        cs.map((x) => (selectedIds.has(x.id) ? { ...x, is_mandatory: target } : x)),
+      );
+      setMessage(`已将 ${selected.length} 个连接器${target ? "设为强制" : "取消强制"}`);
     } catch (e) {
-      setMessage(e instanceof Error ? e.message : "代装失败");
+      setMessage(e instanceof Error ? e.message : "操作失败");
     } finally {
-      setBusyId(null);
+      setBatchBusy(false);
+    }
+  }
+
+  async function handleDelete() {
+    if (selected.length === 0) return;
+    if (!confirm(`确定删除选中的 ${selected.length} 个连接器？`)) return;
+    setBatchBusy(true);
+    setMessage("");
+    try {
+      for (const c of selected) await deleteConnector(c.id);
+      setConnectors((cs) => cs.filter((x) => !selectedIds.has(x.id)));
+      setMessage(`已删除 ${selected.length} 个连接器`);
+      clearSelection();
+    } catch (e) {
+      setMessage(e instanceof Error ? e.message : "删除失败");
+    } finally {
+      setBatchBusy(false);
     }
   }
 
   async function handlePushToUsers(userIds: string[]) {
-    if (!selected) return;
-    const res = await pushConnectorToUsers(selected.id, userIds);
-    setMessage(
-      `已推送「${selected.display_name}」：${res.pushed}/${res.total} 成功` +
-        (res.failed.length ? `，${res.failed.length} 失败` : ""),
-    );
+    if (selected.length === 0) return;
+    setBatchBusy(true);
+    setMessage("");
+    try {
+      const lines: string[] = [];
+      for (const c of selected) {
+        const res = await pushConnectorToUsers(c.id, userIds);
+        lines.push(
+          `已推送「${c.display_name}」：${res.pushed}/${res.total} 成功` +
+            (res.failed.length ? `，${res.failed.length} 失败` : ""),
+        );
+      }
+      setMessage(lines.join("；"));
+    } catch (e) {
+      setMessage(e instanceof Error ? e.message : "推送失败");
+    } finally {
+      setBatchBusy(false);
+    }
   }
 
   return (
@@ -132,12 +175,23 @@ export default function ConnectorsCatalogPage() {
       <div className="mb-4">
         <h1 className="text-2xl font-bold">连接器管理</h1>
         <p className="text-sm text-muted-foreground mt-1">
-          管理官方 MCP 连接器目录。选中卡片后在上方工具栏操作；开启「默认」后新用户自动获得；开启「强制」则对所有用户生效（用户不可关闭）。
+          管理官方 MCP 连接器目录。选中卡片（可多选）后在上方工具栏操作；开启「默认」后新用户自动获得；开启「强制」则对所有用户生效（用户不可关闭）；也可把选中的多个连接器一次性推送给多个指定用户。
         </p>
       </div>
 
       {/* 工具栏：搜索框 + 状态筛选 + 操作按钮，全部与搜索框齐平 */}
       <div className="mb-3 flex flex-wrap items-center gap-2">
+        <label className="inline-flex items-center gap-2 text-sm text-muted-foreground">
+          <input
+            type="checkbox"
+            className="h-4 w-4 rounded border-gray-300 accent-blue-600"
+            checked={allSelected}
+            ref={(el) => { if (el) el.indeterminate = !allSelected && someSelected; }}
+            onChange={() => toggleSelectAll()}
+            disabled={filtered.length === 0}
+          />
+          全选
+        </label>
         <input
           value={query}
           onChange={(e) => setQuery(e.target.value)}
@@ -155,53 +209,45 @@ export default function ConnectorsCatalogPage() {
         </select>
         <div className="ml-auto flex flex-wrap items-center gap-1.5">
           <button
-            title="默认安装（新用户）"
-            disabled={!selected || busyId === selected.id}
-            onClick={() => selected && toggleDefault(selected)}
+            title="默认安装（新用户），可多选"
+            disabled={selected.length === 0 || busy}
+            onClick={() => handleToggleDefault()}
             className="inline-flex items-center gap-1 rounded-md border px-2.5 py-2 text-sm text-muted-foreground hover:text-foreground disabled:opacity-40"
           >
-            {selected?.is_default ? <ToggleRight className="h-4 w-4 text-primary" /> : <ToggleLeft className="h-4 w-4" />}
-            默认
+            {selected.length > 0 && selected.every((c) => c.is_default) ? (
+              <ToggleRight className="h-4 w-4 text-primary" />
+            ) : (
+              <ToggleLeft className="h-4 w-4" />
+            )}
+            {selected.length > 0 && selected.every((c) => c.is_default) ? "取消默认" : "设默认"}
           </button>
           <button
-            title="强制所有用户"
-            disabled={!selected || busyId === selected.id}
-            onClick={() => selected && toggleMandatory(selected)}
+            title="强制所有用户，可多选"
+            disabled={selected.length === 0 || busy}
+            onClick={() => handleToggleMandatory()}
             className="inline-flex items-center gap-1 rounded-md border px-2.5 py-2 text-sm text-muted-foreground hover:text-foreground disabled:opacity-40"
           >
-            {selected?.is_mandatory ? <ToggleRight className="h-4 w-4 text-amber-500" /> : <ToggleLeft className="h-4 w-4" />}
-            强制
+            {selected.length > 0 && selected.every((c) => c.is_mandatory) ? (
+              <ToggleRight className="h-4 w-4 text-amber-500" />
+            ) : (
+              <ToggleLeft className="h-4 w-4" />
+            )}
+            {selected.length > 0 && selected.every((c) => c.is_mandatory) ? "取消强制" : "设强制"}
           </button>
           <button
-            title="推送给所有用户"
-            disabled={!selected || busyId === selected.id}
-            onClick={() => selected && push(selected)}
-            className="inline-flex items-center gap-1 rounded-md border px-2.5 py-2 text-sm text-muted-foreground hover:text-foreground disabled:opacity-40"
-          >
-            <Send className="h-4 w-4" /> 推送
-          </button>
-          <button
-            title="代装给指定用户"
-            disabled={!selected || busyId === selected.id}
-            onClick={() => setShowUserPicker(true)}
-            className="inline-flex items-center gap-1 rounded-md border px-2.5 py-2 text-sm text-muted-foreground hover:text-foreground disabled:opacity-40"
-          >
-            <Send className="h-4 w-4" /> 推送给用户
-          </button>
-          <button
-            title="推送给指定用户（多选）"
-            disabled={!selected || busyId === selected.id}
+            title="推送给指定用户（可多选连接器、多选用户）"
+            disabled={selected.length === 0 || busy}
             onClick={() => setShowPushUsers(true)}
             className="inline-flex items-center gap-1 rounded-md border px-2.5 py-2 text-sm text-muted-foreground hover:text-foreground disabled:opacity-40"
           >
             <Send className="h-4 w-4" /> 推送给指定用户
           </button>
           <button
-            title="编辑"
-            disabled={!selected}
+            title="编辑（仅单选）"
+            disabled={!singleSelected}
             onClick={() => {
-              if (selected) {
-                setEditing(selected);
+              if (singleSelected) {
+                setEditing(singleSelected);
                 setShowForm(true);
               }
             }}
@@ -210,9 +256,9 @@ export default function ConnectorsCatalogPage() {
             <Pencil className="h-4 w-4" /> 编辑
           </button>
           <button
-            title="删除"
-            disabled={!selected}
-            onClick={() => selected && remove(selected)}
+            title="删除，可多选"
+            disabled={selected.length === 0 || busy}
+            onClick={() => handleDelete()}
             className="inline-flex items-center gap-1 rounded-md border px-2.5 py-2 text-sm text-muted-foreground hover:text-red-500 disabled:opacity-40"
           >
             <Trash2 className="h-4 w-4" /> 删除
@@ -229,12 +275,17 @@ export default function ConnectorsCatalogPage() {
         </div>
       </div>
 
-      {selected && (
+      {selected.length > 0 && (
         <div className="mb-3 rounded-md bg-primary/5 px-3 py-2 text-sm">
-          已选中：<b>{selected.display_name}</b>（{selected.name}）· {selected.status === "active" ? "启用" : "停用"}
+          已选中：<b>{selected.length}</b> 个连接器
+          {singleSelected ? (
+            <span className="text-muted-foreground">
+              （{singleSelected.display_name} · {singleSelected.status === "active" ? "启用" : "停用"}）
+            </span>
+          ) : null}
           <button
             className="ml-2 text-muted-foreground hover:text-foreground"
-            onClick={() => setSelectedId(null)}
+            onClick={() => clearSelection()}
           >
             取消选择
           </button>
@@ -253,14 +304,23 @@ export default function ConnectorsCatalogPage() {
             <div
               key={c.id}
               data-connector-id={c.id}
-              onClick={() => setSelectedId(c.id)}
+              onClick={() => toggleSelect(c.id)}
               className={`cursor-pointer rounded-lg transition-colors ${
-                selectedId === c.id ? "ring-2 ring-primary" : ""
+                selectedIds.has(c.id) ? "ring-2 ring-primary" : ""
               }`}
             >
               <Card size="sm">
                 <CardHeader>
-                  <CardTitle className="truncate text-sm">{c.display_name}</CardTitle>
+                  <CardTitle className="flex items-center gap-2 truncate text-sm">
+                    <input
+                      type="checkbox"
+                      checked={selectedIds.has(c.id)}
+                      onChange={() => toggleSelect(c.id)}
+                      onClick={(e) => e.stopPropagation()}
+                      className="h-4 w-4 shrink-0 rounded border-gray-300 accent-blue-600"
+                    />
+                    <span className="truncate">{c.display_name}</span>
+                  </CardTitle>
                   <CardAction className="flex flex-wrap justify-end gap-1.5">
                     <span
                       className={`text-[10px] px-1.5 py-0.5 rounded ${
@@ -303,16 +363,9 @@ export default function ConnectorsCatalogPage() {
         />
       )}
 
-      <UserPickerModal
-        open={showUserPicker}
-        title="代装连接器给指定用户"
-        onClose={() => setShowUserPicker(false)}
-        onSelect={assignToUser}
-      />
-
       <PushUsersModal
         open={showPushUsers}
-        title="推送连接器给指定用户（多选）"
+        title={`推送 ${selected.length} 个连接器给指定用户`}
         confirmLabel="推送"
         onClose={() => setShowPushUsers(false)}
         onPush={handlePushToUsers}

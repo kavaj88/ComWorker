@@ -1429,7 +1429,6 @@ def init_agent(
                     f"  Falling back to provider default.\n",
                     file=sys.stderr,
                 )
-    agent._session_init_model_config["max_tokens"] = agent.max_tokens
 
     # Read explicit context_length override from model config
     if isinstance(_model_cfg, dict):
@@ -1468,6 +1467,49 @@ def init_agent(
     # compression model context-length detection needs the same list).
     agent._custom_providers = _custom_providers
     _merge_custom_provider_extra_body(agent, _custom_providers)
+
+    # Per-model override under custom_providers[].models[].max_tokens.
+    # Some providers / model variants cap the response budget (e.g. Volces
+    # Ark kimi-k2.7-code is 32 768) below hermes' global default of 128 000;
+    # without this fallback the very first request gets a deterministic
+    # 400 InvalidParameter that the retry loop misroutes into context
+    # compression, dumping a fallback summary into the chat surface.
+    # Only applied when the agent is using the API default (None) — an
+    # explicit user-set ``agent.max_tokens`` (or top-level ``model:``
+    # block) always wins.
+    if agent.max_tokens is None and _custom_providers:
+        for _cp_entry in _custom_providers:
+            if not isinstance(_cp_entry, dict):
+                continue
+            _cp_models = _cp_entry.get("models")
+            if not isinstance(_cp_models, list):
+                continue
+            for _m_entry in _cp_models:
+                if not isinstance(_m_entry, dict):
+                    continue
+                if _m_entry.get("id") != agent.model and _m_entry.get("name") != agent.model:
+                    continue
+                _cp_mt = _m_entry.get("max_tokens")
+                if _cp_mt is not None:
+                    try:
+                        if isinstance(_cp_mt, bool):
+                            raise ValueError
+                        _parsed_cp_mt = int(_cp_mt)
+                        if _parsed_cp_mt <= 0:
+                            raise ValueError
+                        agent.max_tokens = _parsed_cp_mt
+                    except (TypeError, ValueError):
+                        _ra().logger.warning(
+                            "Invalid max_tokens for model %r in "
+                            "custom_providers: %r — must be a positive "
+                            "integer. Ignoring.",
+                            agent.model, _cp_mt,
+                        )
+                break
+            else:
+                continue
+            break
+    agent._session_init_model_config["max_tokens"] = agent.max_tokens
 
     # Check custom_providers per-model context_length
     if _config_context_length is None and _custom_providers:

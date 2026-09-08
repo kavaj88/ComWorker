@@ -1,3 +1,4 @@
+# syntax=docker/dockerfile:1.7
 FROM node:22-alpine AS builder
 WORKDIR /app
 COPY package.json package-lock.json* ./
@@ -6,7 +7,7 @@ RUN npm config set registry https://registry.npmmirror.com && \
     npm config set fetch-retries 5 && \
     npm config set fetch-retry-mintimeout 20000 && \
     npm config set fetch-retry-maxtimeout 120000
-RUN --mount=type=cache,target=/root/.npm npm install --prefer-offline --no-audit
+RUN --mount=type=cache,id=comworker-manage-npm,target=/root/.npm npm install --prefer-offline --no-audit
 COPY . .
 RUN npm run build
 

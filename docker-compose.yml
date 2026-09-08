@@ -91,7 +91,12 @@ services:
       PLATFORM_HOSTED_VLLM_API_KEY: ${HOSTED_VLLM_API_KEY:-}
       PLATFORM_HOSTED_VLLM_API_BASE: ${HOSTED_VLLM_API_BASE:-}
 
-      PLATFORM_DEFAULT_MODEL: ${DEFAULT_MODEL:-openai/glm-5.1}
+      # No global default model. Each user inherits the admin-configured
+      # providers (mirrored into their container on first model-list fetch),
+      # and must pick an explicit model. Shipping a non-existent default
+      # (e.g. openai/glm-5.1) made chat fail with
+      # "No provider configured for model 'openai/glm-5.1'".
+      PLATFORM_DEFAULT_MODEL: ${DEFAULT_MODEL:-}
       PLATFORM_COMWORKER_IMAGE: ${PLATFORM_COMWORKER_IMAGE:-comworker:latest}
       PLATFORM_HERMES_IMAGE: ${PLATFORM_HERMES_IMAGE:-comworker-hermes-agent:latest}
       PLATFORM_DEDICATED_RUNTIME_BACKEND: ${PLATFORM_DEDICATED_RUNTIME_BACKEND:-hermes}
@@ -102,6 +107,12 @@ services:
       PLATFORM_HERMES_SERVICE_TIER: ${PLATFORM_HERMES_SERVICE_TIER:-}
       PLATFORM_MINIMAX_M27_USE_HIGHSPEED: ${MINIMAX_M27_USE_HIGHSPEED:-true}
       PLATFORM_DEDICATED_HERMES_URL: ${PLATFORM_DEDICATED_HERMES_URL:-}
+      # Bridge key the gateway uses to call the per-user Hermes runtime
+      # containers. Must match the API_SERVER_KEY each hermes-user-* container
+      # was spawned with (see app/container/manager.py). If left blank the
+      # gateway sends an empty Bearer token and Hermes answers 401
+      # "Invalid API key", which surfaces in the client as a chat failure.
+      PLATFORM_DEDICATED_HERMES_API_KEY: ${DEDICATED_HERMES_API_KEY:-dev-hermes-bridge-key}
       PLATFORM_DEV_COMWORKER_URL: ${PLATFORM_DEV_COMWORKER_URL:-}
       PLATFORM_CONTAINER_NETWORK: comworker-internal
       PLATFORM_SHARED_COMWORKER_ENABLED: ${PLATFORM_SHARED_COMWORKER_ENABLED:-true}

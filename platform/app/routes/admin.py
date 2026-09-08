@@ -16,7 +16,7 @@ from pathlib import Path
 
 import docker
 from docker.errors import NotFound as DockerNotFound
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Response, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, Response, UploadFile
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
@@ -48,6 +48,11 @@ from app.container.manager import (
     pause_container,
     resume_container,
 )
+# Admin-scoped cron management reuses the exact same Hermes cron proxy that
+# serves the end-user ``/api/comworker/cron/jobs`` route, so run/toggle/edit/
+# delete + result previews behave identically for admins inspecting another
+# user's scheduled tasks from the user-detail page.
+from app.routes.proxy import _proxy_hermes_cron
 from app.routes.models import (
     _read_container_config,
     _write_container_config,
@@ -105,7 +110,12 @@ from app.db.models import (
     UserCapability,
 )
 from app.model_keys import get_api_key, set_api_key
-from app.model_config import _provider_visible_to_user, get_model_config_payload, set_default_model
+from app.model_config import (
+    _provider_visible_to_user,
+    get_model_config_payload,
+    serialize_provider,
+    set_default_model,
+)
 
 router = APIRouter(prefix="/api/admin", tags=["admin"], dependencies=[Depends(require_admin), Depends(require_setup_complete)])
 
@@ -182,6 +192,25 @@ class UserModelsResponse(BaseModel):
 class UpdateUserModelsRequest(BaseModel):
     providers: dict[str, bool] | None = None
     defaultModel: str | None = None
+
+
+class ProviderScopeRequest(BaseModel):
+    """Set a provider's per-user visibility scope.
+
+    mode="all"   => every user (incl. new registrations) may use it
+    mode="allow" => only the listed user_ids may use it
+    mode="deny"  => everyone except the listed user_ids
+    """
+
+    mode: str
+    user_ids: list[str] = []
+
+
+class ProviderAutoInstallRequest(BaseModel):
+    """Toggle whether newly registered users are auto-added to this provider's
+    allow-list (only meaningful when mode="allow")."""
+
+    enabled: bool
 
 async def _sync_container_status(db: AsyncSession, docker_id: str, db_status: str | None) -> str | None:
     """Sync container status from Docker API to database.
@@ -799,6 +828,65 @@ async def update_user_models(
         detail={"providers": req.providers, "defaultModel": req.defaultModel},
     )
     return await get_user_models(user_id, db)
+
+
+@router.put("/models/{provider_id}/scope")
+async def update_provider_scope(
+    provider_id: str,
+    req: ProviderScopeRequest,
+    db: AsyncSession = Depends(get_db),
+    admin_user: User = Depends(require_admin),
+):
+    """Set a provider's per-user visibility scope (push to users).
+
+    mode="all"   => push to all users (everyone may use it)
+    mode="allow" => push to the listed user_ids only
+    mode="deny"  => everyone except the listed user_ids
+    """
+    provider = await db.get(ModelProviderConfig, provider_id.strip().lower())
+    if provider is None:
+        raise HTTPException(status_code=404, detail="Provider not found")
+    mode = (req.mode or "all").strip().lower()
+    if mode not in ("all", "allow", "deny"):
+        raise HTTPException(status_code=400, detail="mode must be one of: all, allow, deny")
+    user_ids = [u.strip() for u in (req.user_ids or []) if u.strip()]
+    if mode in ("allow", "deny") and not user_ids:
+        raise HTTPException(status_code=400, detail=f"mode='{mode}' requires at least one user_id")
+    provider.user_scope = {"mode": mode, "user_ids": user_ids}
+    await db.commit()
+    await write_audit_log(
+        db,
+        action="provider_scope_update",
+        user_id=admin_user.id,
+        resource=provider.id,
+        detail={"mode": mode, "user_ids": user_ids},
+    )
+    return serialize_provider(provider)
+
+
+@router.put("/models/{provider_id}/auto-install")
+async def set_provider_auto_install(
+    provider_id: str,
+    req: ProviderAutoInstallRequest,
+    db: AsyncSession = Depends(get_db),
+    admin_user: User = Depends(require_admin),
+):
+    """Toggle whether newly registered users are auto-added to this provider's
+    allow-list. Only meaningful when the provider's scope mode is "allow"; for
+    mode="all" every new user already sees it."""
+    provider = await db.get(ModelProviderConfig, provider_id.strip().lower())
+    if provider is None:
+        raise HTTPException(status_code=404, detail="Provider not found")
+    provider.auto_install_new_users = bool(req.enabled)
+    await db.commit()
+    await write_audit_log(
+        db,
+        action="provider_auto_install_update",
+        user_id=admin_user.id,
+        resource=provider.id,
+        detail={"enabled": provider.auto_install_new_users},
+    )
+    return serialize_provider(provider)
 
 
 @router.get("/users/{user_id}/models/configured")
@@ -2013,7 +2101,7 @@ async def get_default_install(
             overrides = {k: bool(v) for k, v in json.loads(override_row.value).items()}
         except Exception:
             pass
-    return {"enabled": flag is None or flag.value != "false", "overrides": overrides}
+    return {"enabled": flag is not None and flag.value == "true", "overrides": overrides}
 
 @router.put("/skills/default-install")
 async def set_default_install(
@@ -2128,6 +2216,39 @@ async def admin_uninstall_user_skill(
             # 物理删除失败不阻断去标记
             pass
     return {"ok": True, "user_id": user_id, "name": name, **result}
+
+
+class AdminBatchUninstallSkillsRequest(BaseModel):
+    names: list[str]
+
+
+@router.post("/users/{user_id}/skills/uninstall-batch")
+async def admin_uninstall_user_skills_batch(
+    user_id: str,
+    req: AdminBatchUninstallSkillsRequest,
+    admin_user: User = Depends(require_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """批量卸载某用户的多个技能（管理端「用户 › 技能管理」多选后一次卸载）。
+
+    内置 catalog 技能只去除 user/managed 标记、不删文件；非内置（用户自装）技能一并物理删除。
+    """
+    if not req.names:
+        raise HTTPException(status_code=400, detail="names 不能为空")
+    container = await ensure_running(db, user_id)
+    marker = read_installed_marker(container.docker_id)
+    catalog = _load_catalog()
+    for name in req.names:
+        marker["user"].discard(name)
+        marker["managed"].discard(name)
+        if name not in catalog.get("skills", {}):
+            try:
+                delete_skill_from_hermes_container(container.docker_id, name)
+            except Exception:
+                # 物理删除失败不阻断去标记
+                pass
+    result = write_installed_marker(container.docker_id, marker["user"], marker["managed"])
+    return {"ok": True, "user_id": user_id, "names": req.names, **result}
 
 
 # ─── Platform MCP connectors (admin-managed) ────────────────────────────────
@@ -2960,3 +3081,42 @@ async def admin_user_usage(
         "tokens_this_week": int(week),
         "tokens_total": int(total),
     }
+
+
+# ─── 管理端：代管任意用户的定时任务（复用 ComWorker→Hermes cron 代理） ──────────
+@router.api_route(
+    "/users/{user_id}/cron/jobs",
+    methods=["GET", "POST"],
+)
+@router.api_route(
+    "/users/{user_id}/cron/jobs/{job_id}",
+    methods=["PUT", "PATCH", "DELETE"],
+)
+@router.api_route(
+    "/users/{user_id}/cron/jobs/{job_id}/{action}",
+    methods=["POST"],
+)
+async def admin_proxy_user_cron(
+    user_id: str,
+    job_id: str = "",
+    action: str = "",
+    request: Request = None,
+    db: AsyncSession = Depends(get_db),
+):
+    """管理端代管指定用户的定时任务。
+
+    解析目标用户的专属容器地址，直接复用 ``_proxy_hermes_cron``（与终端用户
+    ``/api/comworker/cron/jobs`` 完全一致的代理），从而运行 / 启停 / 编辑 /
+    删除 + 结果预览的行为对管理员一致。
+    """
+    try:
+        container = await ensure_running(db, user_id)
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(status_code=502, detail=f"无法启动用户容器: {exc}")
+    base_url = f"http://{container.internal_host}:{container.internal_port}"
+    # 去掉管理端前缀与 user_id，使 _proxy_hermes_cron 看到 ``cron/jobs...``
+    rel = request.url.path
+    prefix = f"/api/admin/users/{user_id}/"
+    if rel.startswith(prefix):
+        rel = rel[len(prefix):]
+    return await _proxy_hermes_cron(rel, request, base_url)

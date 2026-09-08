@@ -13,7 +13,6 @@ import ConnectorStore from './pages/ConnectorStore.tsx'
 import Experts from './pages/Experts.tsx'
 import ExpertDetail from './pages/ExpertDetail.tsx'
 import Channels from './pages/Channels.tsx'
-import Plugins from './pages/Plugins.tsx'
 import AIModels from './pages/AIModels.tsx'
 import { isLoggedIn } from './lib/api.ts'
 import { ToastProvider } from './components/ui/Toast.tsx'
@@ -39,7 +38,6 @@ export default function App() {
           <Route path="experts" element={<Experts />} />
           <Route path="experts/:id" element={<ExpertDetail />} />
           <Route path="channels" element={<Channels />} />
-          <Route path="plugins" element={<Plugins />} />
           <Route path="models" element={<AIModels />} />
           <Route path="cron" element={<CronJobs />} />
           <Route path="settings" element={<Settings />} />

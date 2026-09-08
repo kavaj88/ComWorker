@@ -1784,20 +1784,6 @@ def _build_job_prompt(job: dict, prerun_script: Optional[tuple] = None) -> str:
                 logger.warning("context_from: failed to read output for job %r: %s", source_job_id, e)
                 # silent skip — do not pollute the prompt with error messages
 
-    # Always prepend cron execution guidance so the agent knows how
-    # delivery works and can suppress delivery when appropriate.
-    cron_hint = (
-        "[IMPORTANT: You are running as a scheduled cron job. "
-        "DELIVERY: Your final response will be automatically delivered "
-        "to the user — do NOT use send_message or try to deliver "
-        "the output yourself. Just produce your report/output as your "
-        "final response and the system handles the rest. "
-        "SILENT: If there is genuinely nothing new to report, respond "
-        "with exactly \"[SILENT]\" (nothing else) to suppress delivery. "
-        "Never combine [SILENT] with content — either report your "
-        "findings normally, or say [SILENT] and nothing more.]\n\n"
-    )
-    prompt = cron_hint + prompt
     if skills is None:
         legacy = job.get("skill")
         skills = [legacy] if legacy else []
@@ -1968,6 +1954,12 @@ def run_job(job: dict) -> tuple[bool, str, str, Optional[str]]:
     """
     job_id = job["id"]
     job_name = str(job.get("name") or job.get("prompt") or job_id or "cron job")
+    # Original user prompt, kept separate from the assembled ``prompt``
+    # (which may include injected script output / referenced-job context /
+    # skill bundles). Used verbatim in the run's ``.md`` "## Prompt" section
+    # so the operator sees WHAT was asked — NOT the internal cron system
+    # hint (that lives in ``ephemeral_system_prompt``). Bug #5.
+    user_prompt = str(job.get("prompt") or "")
 
     # ---------------------------------------------------------------
     # no_agent short-circuit — the script IS the job, no LLM involvement.
@@ -2213,6 +2205,21 @@ def run_job(job: dict) -> tuple[bool, str, str, Optional[str]]:
     if _job_workdir:
         os.environ["TERMINAL_CWD"] = _job_workdir
         logger.info("Job '%s': using workdir %s", job_id, _job_workdir)
+
+    # Cron execution guidance for the agent. Passed as an ephemeral system
+    # prompt so it shapes model behavior WITHOUT polluting the user-visible
+    # session history (which only records the user's original prompt).
+    cron_hint = (
+        "[IMPORTANT: You are running as a scheduled cron job. "
+        "DELIVERY: Your final response will be automatically delivered "
+        "to the user — do NOT use send_message or try to deliver "
+        "the output yourself. Just produce your report/output as your "
+        "final response and the system handles the rest. "
+        "SILENT: If there is genuinely nothing new to report, respond "
+        "with exactly \"[SILENT]\" (nothing else) to suppress delivery. "
+        "Never combine [SILENT] with content — either report your "
+        "findings normally, or say [SILENT] and nothing more.]"
+    )
 
     try:
         # Re-read .env and config.yaml fresh every run so provider/key
@@ -2487,6 +2494,7 @@ def run_job(job: dict) -> tuple[bool, str, str, Optional[str]]:
             enabled_toolsets=_resolve_cron_enabled_toolsets(job, _cfg),
             disabled_toolsets=_resolve_cron_disabled_toolsets(_cfg),
             quiet_mode=True,
+            ephemeral_system_prompt=cron_hint,
             # Cron jobs should always inherit the user's SOUL.md identity from
             # HERMES_HOME. When a workdir is configured, also inject project
             # context files (AGENTS.md / CLAUDE.md / .cursorrules) from there.
@@ -2659,20 +2667,20 @@ def run_job(job: dict) -> tuple[bool, str, str, Optional[str]]:
 
 ## Prompt
 
-{prompt}
+{user_prompt}
 
 ## Response
 
 {logged_response}
 """
-        
+
         logger.info("Job '%s' completed successfully", job_name)
         return True, output, final_response, None
-        
+
     except Exception as e:
         error_msg = f"{type(e).__name__}: {str(e)}"
         logger.exception("Job '%s' failed: %s", job_name, error_msg)
-        
+
         output = f"""# Cron Job: {job_name} (FAILED)
 
 **Job ID:** {job_id}
@@ -2681,7 +2689,7 @@ def run_job(job: dict) -> tuple[bool, str, str, Optional[str]]:
 
 ## Prompt
 
-{prompt}
+{user_prompt}
 
 ## Error
 

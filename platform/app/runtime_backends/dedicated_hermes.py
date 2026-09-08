@@ -40,7 +40,7 @@ from app.runtime_backends.hermes_run import (
     sanitize_sse_block,
     summarize_run_events,
 )
-from app.runtime_backends.hermes_skills import list_skills_from_hermes_container
+from app.runtime_backends.hermes_skills import list_skills_from_hermes_container, read_installed_marker
 from app.runtime_backends.hermes_commands import list_hermes_commands_from_container
 
 logger = logging.getLogger(__name__)
@@ -398,7 +398,57 @@ class DedicatedHermesBackend:
     async def list_skills(self, ctx: RuntimeContext) -> list[dict]:
         async with async_session() as db:
             container = await ensure_running(db, ctx.user.id)
-        return list_skills_from_hermes_container(container.docker_id)
+            # Resolve which platform connectors this user has currently
+            # enabled so the client can show connector-enabled hints, and
+            # which skills the user has actually installed (explicitly via
+            # the skill store OR pushed by an admin) so the chat context
+            # picker only shows skills the user opted into. Both joins are
+            # best-effort; if either lookup fails we degrade gracefully.
+            enabled_connectors = await self._enabled_connector_names(db, ctx.user.id)
+            installed = await self._installed_skill_names(container.docker_id)
+        return list_skills_from_hermes_container(
+            container.docker_id,
+            enabled_connector_names=enabled_connectors,
+            installed_names=installed,
+        )
+
+    @staticmethod
+    async def _enabled_connector_names(db, user_id: str) -> set[str]:
+        from sqlalchemy import select
+
+        from app.db.models import McpConnector, UserMcpConnector
+
+        result = await db.execute(select(McpConnector).where(McpConnector.status == "active"))
+        connectors = result.scalars().all()
+        ur = await db.execute(
+            select(UserMcpConnector).where(UserMcpConnector.user_id == user_id)
+        )
+        overrides = {row.name: row.enabled for row in ur.scalars().all()}
+        enabled: set[str] = set()
+        for c in connectors:
+            if c.is_mandatory or c.is_default:
+                enabled.add(c.name)
+            elif c.name in overrides and overrides[c.name]:
+                enabled.add(c.name)
+        return enabled
+
+    @staticmethod
+    async def _installed_skill_names(container_id_or_name: str | None) -> set[str]:
+        # Returns the union of user-installed and admin-pushed skill names so
+        # the chat picker can show both. ``None`` (any failure) tells the
+        # caller to skip the join and surface every skill -- better to over-
+        # expose than to silently hide things the user explicitly installed.
+        try:
+            marker = read_installed_marker(container_id_or_name)
+        except Exception:
+            logger.warning(
+                "list_skills: failed to read installed marker; falling back to no join",
+                exc_info=True,
+            )
+            return set()
+        user = marker.get("user", set()) if isinstance(marker, dict) else set()
+        managed = marker.get("managed", set()) if isinstance(marker, dict) else set()
+        return {n for n in (user | managed) if isinstance(n, str) and n}
 
     async def list_sessions(self, ctx: RuntimeContext) -> list[dict]:
         payload = await self._request(ctx, "GET", "/api/hermes/sessions")

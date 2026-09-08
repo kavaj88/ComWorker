@@ -262,6 +262,58 @@ def _provider_uses_anthropic_messages(provider: ModelProviderConfig | None, api_
     return provider_type in {"minimax-cn", "anthropic_messages"} or normalized_base.endswith("/anthropic")
 
 
+def _provider_is_anthropic_endpoint(provider: ModelProviderConfig | None, api_base: str | None) -> bool:
+    """True for providers that speak the Anthropic Messages protocol.
+
+    The admin sets api_mode explicitly (e.g. "anthropic-messages"); that is the
+    authoritative protocol selector, so we honor it. Native Anthropic provider
+    types and genuinely Anthropic-shaped base URLs also count.
+    """
+    if provider is None:
+        return False
+    provider_type = (provider.provider_type or "").strip().lower()
+    api_mode = (provider.api_mode or "").strip().lower()
+    normalized_base = (api_base or "").strip().rstrip("/").lower()
+    if provider_type in {"anthropic", "minimax-cn"}:
+        return True
+    if "anthropic" in api_mode:
+        return True
+    if normalized_base.endswith("/anthropic") or normalized_base.endswith("/messages"):
+        return True
+    return False
+
+
+def _is_openai_compatible_streaming_provider(provider: ModelProviderConfig | None, api_base: str | None) -> bool:
+    """True for providers that should use the raw httpx pass-through in stream mode.
+
+    litellm's abstraction layer can buffer or re-chunk the upstream SSE stream,
+    which breaks incremental reasoning display (the whole reasoning_content
+    block arrives as one giant chunk). Anthropic-style providers keep their
+    existing dedicated path; everything else that speaks OpenAI-compatible
+    /chat/completions is sent through as raw SSE chunks.
+    """
+    if provider is None:
+        return False
+    api_mode = (provider.api_mode or "").strip().lower()
+    if api_mode == "anthropic_messages":
+        return False
+    provider_type = (provider.provider_type or "").strip().lower()
+    if provider_type in {"anthropic", "minimax-cn"}:
+        return False
+    openai_compatible_types = {
+        "openai", "deepseek", "minimax", "kimi", "moonshot", "zhipu",
+        "doubao", "dashscope", "aihubmix", "evolink", "custom", "vllm",
+        "openrouter",
+    }
+    if api_mode in {"chat_completions", "openai_completions"} or provider_type in openai_compatible_types:
+        return True
+    # Heuristic: Anthropic /v1/messages endpoints are NOT OpenAI-compatible.
+    normalized_base = (api_base or "").strip().rstrip("/").lower()
+    if normalized_base.endswith("/anthropic") or normalized_base.endswith("/messages"):
+        return False
+    return False
+
+
 # ---------------------------------------------------------------------------
 # Quota check
 # ---------------------------------------------------------------------------
@@ -431,8 +483,90 @@ def _anthropic_content_text(payload: dict[str, Any]) -> str:
     return "".join(parts)
 
 
+def _anthropic_content_reasoning(payload: dict[str, Any]) -> str:
+    """Join Anthropic ``thinking`` blocks so the platform can surface them as
+    OpenAI ``reasoning_content`` (used by the client's thinking UI)."""
+    parts: list[str] = []
+    for item in payload.get("content") or []:
+        if isinstance(item, dict) and item.get("type") == "thinking":
+            thinking = item.get("thinking")
+            if thinking is not None:
+                parts.append(str(thinking))
+    return "".join(parts)
+
+
+def _convert_openai_tools_to_anthropic(
+    tools: list[dict[str, Any]] | None,
+) -> list[dict[str, Any]] | None:
+    """Convert OpenAI-format function tools to Anthropic input_schema tools."""
+    if not tools:
+        return None
+    anthropic_tools: list[dict[str, Any]] = []
+    for tool in tools:
+        if not isinstance(tool, dict):
+            continue
+        # Support both wrapped OpenAI format and Anthropic-native format.
+        if tool.get("type") == "function" and isinstance(tool.get("function"), dict):
+            func = tool["function"]
+            name = func.get("name")
+            description = func.get("description")
+            parameters = func.get("parameters")
+        elif "input_schema" in tool:
+            # Already Anthropic-shaped.
+            anthropic_tools.append(tool)
+            continue
+        else:
+            name = tool.get("name")
+            description = tool.get("description")
+            parameters = tool.get("parameters") or tool.get("input_schema")
+        if not name:
+            continue
+        atool: dict[str, Any] = {"name": str(name), "input_schema": {}}
+        if description is not None:
+            atool["description"] = str(description)
+        if isinstance(parameters, dict):
+            atool["input_schema"] = parameters
+        anthropic_tools.append(atool)
+    return anthropic_tools if anthropic_tools else None
+
+
+def _anthropic_content_tool_calls(payload: dict[str, Any]) -> list[dict[str, Any]]:
+    """Extract Anthropic ``tool_use`` blocks as OpenAI ``message.tool_calls``."""
+    tool_calls: list[dict[str, Any]] = []
+    for item in payload.get("content") or []:
+        if isinstance(item, dict) and item.get("type") == "tool_use":
+            tool_id = item.get("id") or f"call_{int(time.time() * 1000)}"
+            import json as _json
+            arguments = item.get("input")
+            if isinstance(arguments, dict):
+                arguments = _json.dumps(arguments, ensure_ascii=False)
+            elif arguments is None:
+                arguments = "{}"
+            else:
+                arguments = str(arguments)
+            tool_calls.append({
+                "id": str(tool_id),
+                "type": "function",
+                "function": {
+                    "name": str(item.get("name") or ""),
+                    "arguments": arguments,
+                },
+            })
+    return tool_calls
+
+
 def _chat_completion_payload_from_anthropic(payload: dict[str, Any], model: str) -> dict[str, Any]:
     input_tokens, output_tokens = _anthropic_usage_tokens(payload.get("usage"))
+    message: dict[str, Any] = {
+        "role": "assistant",
+        "content": _anthropic_content_text(payload),
+    }
+    reasoning = _anthropic_content_reasoning(payload)
+    if reasoning:
+        message["reasoning_content"] = reasoning
+    tool_calls = _anthropic_content_tool_calls(payload)
+    if tool_calls:
+        message["tool_calls"] = tool_calls
     return {
         "id": payload.get("id") or f"chatcmpl-platform-{int(time.time())}",
         "object": "chat.completion",
@@ -440,10 +574,7 @@ def _chat_completion_payload_from_anthropic(payload: dict[str, Any], model: str)
         "model": model,
         "choices": [{
             "index": 0,
-            "message": {
-                "role": "assistant",
-                "content": _anthropic_content_text(payload),
-            },
+            "message": message,
             "finish_reason": "stop" if payload.get("stop_reason") in {None, "end_turn"} else payload.get("stop_reason"),
         }],
         "usage": {
@@ -458,8 +589,22 @@ async def _single_chunk_stream(payload: dict[str, Any], model: str):
     import json
 
     text = _anthropic_content_text(payload)
+    reasoning = _anthropic_content_reasoning(payload)
     created = int(time.time())
     chunk_id = payload.get("id") or f"chatcmpl-platform-{created}"
+    if reasoning:
+        rchunk = {
+            "id": chunk_id,
+            "object": "chat.completion.chunk",
+            "created": created,
+            "model": model,
+            "choices": [{
+                "index": 0,
+                "delta": {"reasoning_content": reasoning},
+                "finish_reason": None,
+            }],
+        }
+        yield f"data: {json.dumps(rchunk)}\n\n"
     if text:
         chunk = {
             "id": chunk_id,
@@ -495,13 +640,14 @@ async def _single_chunk_stream(payload: dict[str, Any], model: str):
     yield "data: [DONE]\n\n"
 
 
-async def _call_anthropic_messages(
+def _build_anthropic_request(
     *,
     model: str,
     api_key: str,
     api_base: str,
     raw_request: dict,
-) -> dict[str, Any]:
+) -> tuple[str, dict[str, str], dict[str, Any]]:
+    """Build the URL/headers/body for an Anthropic Messages API call."""
     system_prompt, messages = _openai_messages_to_anthropic(raw_request.get("messages") or [])
     if not messages:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Missing Anthropic messages")
@@ -516,13 +662,30 @@ async def _call_anthropic_messages(
     for key in ("temperature", "top_p", "stop"):
         if key in raw_request:
             body[key] = raw_request[key]
-
+    tools = _convert_openai_tools_to_anthropic(raw_request.get("tools"))
+    if tools:
+        body["tools"] = tools
+        if raw_request.get("tool_choice"):
+            body["tool_choice"] = raw_request["tool_choice"]
     url = f"{_normalize_anthropic_api_base(api_base).rstrip('/')}/v1/messages"
     headers = {
         "authorization": f"Bearer {api_key}",
         "content-type": "application/json",
         "anthropic-version": "2023-06-01",
     }
+    return url, headers, body
+
+
+async def _call_anthropic_messages(
+    *,
+    model: str,
+    api_key: str,
+    api_base: str,
+    raw_request: dict,
+) -> dict[str, Any]:
+    url, headers, body = _build_anthropic_request(
+        model=model, api_key=api_key, api_base=api_base, raw_request=raw_request,
+    )
     async with httpx.AsyncClient(timeout=300.0) as client:
         resp = await client.post(url, headers=headers, json=body)
     try:
@@ -535,6 +698,191 @@ async def _call_anthropic_messages(
             detail=f"Anthropic-compatible provider error: HTTP {resp.status_code}: {payload}",
         )
     return payload if isinstance(payload, dict) else {"content": []}
+
+
+async def _stream_anthropic_messages(
+    *,
+    model: str,
+    upstream_model: str,
+    provider_id: str | None,
+    litellm_model: str,
+    db: AsyncSession,
+    user: User | None,
+    api_key: str,
+    api_base: str,
+    raw_request: dict,
+):
+    """Stream an Anthropic Messages API call, translating SSE to OpenAI chunks.
+
+    The upstream emits Anthropic streaming events (content_block_delta with
+    thinking_delta / text_delta). We translate those into OpenAI-format
+    chat.completion.chunk deltas (reasoning_content / content) so the client's
+    existing OpenAI SSE parser displays incremental reasoning instead of waiting
+    for the whole response and dumping it at once.
+    """
+    import json as _json
+
+    url, headers, body = _build_anthropic_request(
+        model=upstream_model, api_key=api_key, api_base=api_base, raw_request=raw_request,
+    )
+    body["stream"] = True
+
+    created = int(time.time())
+    chunk_id = f"chatcmpl-platform-{created}"
+    total_input = 0
+    total_output = 0
+
+    # State for translating Anthropic tool_use content blocks into OpenAI
+    # incremental tool_calls deltas.
+    tool_calls_state: list[dict[str, Any]] = []
+    current_tool_index: int | None = None
+    current_tool_id: str | None = None
+    current_tool_name: str | None = None
+    current_tool_args: list[str] = []
+    finish_reason: str | None = None
+
+    def _emit(delta: dict, fin_reason: str | None = None) -> str:
+        chunk = {
+            "id": chunk_id,
+            "object": "chat.completion.chunk",
+            "created": created,
+            "model": model,
+            "choices": [{"index": 0, "delta": delta, "finish_reason": fin_reason}],
+        }
+        return f"data: {_json.dumps(chunk)}\n\n"
+
+    def _error_chunk(text: str) -> str:
+        chunk = {
+            "id": chunk_id,
+            "object": "chat.completion.chunk",
+            "created": created,
+            "model": model,
+            "choices": [{
+                "index": 0,
+                "delta": {"content": f"\n\n[Error] {text}"},
+                "finish_reason": "stop",
+            }],
+        }
+        return f"data: {_json.dumps(chunk)}\n\n"
+
+    try:
+        async with httpx.AsyncClient(timeout=None) as client:
+            async with client.stream("POST", url, headers=headers, json=body) as resp:
+                if resp.status_code >= 400:
+                    err_body = await resp.aread()
+                    err_text = err_body.decode("utf-8", "replace")[:300]
+                    logger.error("上游 Anthropic LLM 返回错误: %s %s", resp.status_code, err_text)
+                    yield _error_chunk(f"LLM provider error: {resp.status_code} {err_text}")
+                    yield "data: [DONE]\n\n"
+                    return
+                async for line in resp.aiter_lines():
+                    if not line or not line.startswith("data:"):
+                        continue
+                    payload = line[len("data:"):].strip()
+                    if not payload or payload == "[DONE]":
+                        continue
+                    try:
+                        obj = _json.loads(payload)
+                    except Exception:
+                        continue
+                    etype = obj.get("type")
+                    if etype == "message_start":
+                        usage = (obj.get("message") or {}).get("usage") or {}
+                        total_input = usage.get("input_tokens") or 0
+                    elif etype == "content_block_start":
+                        block = obj.get("content_block") or {}
+                        if block.get("type") == "tool_use":
+                            current_tool_index = len(tool_calls_state)
+                            current_tool_id = block.get("id") or f"call_{created}_{current_tool_index}"
+                            current_tool_name = str(block.get("name") or "")
+                            current_tool_args = []
+                            tool_calls_state.append({
+                                "id": current_tool_id,
+                                "type": "function",
+                                "function": {"name": current_tool_name, "arguments": ""},
+                            })
+                            yield _emit({
+                                "tool_calls": [{
+                                    "index": current_tool_index,
+                                    "id": current_tool_id,
+                                    "type": "function",
+                                    "function": {"name": current_tool_name, "arguments": ""},
+                                }],
+                            })
+                    elif etype == "content_block_delta":
+                        delta = obj.get("delta") or {}
+                        dt = delta.get("type")
+                        if dt == "thinking_delta" and delta.get("thinking"):
+                            yield _emit({"reasoning_content": delta["thinking"]})
+                        elif dt == "text_delta" and delta.get("text"):
+                            yield _emit({"content": delta["text"]})
+                        elif dt == "input_json_delta" and isinstance(delta.get("partial_json"), str):
+                            partial = delta["partial_json"]
+                            if current_tool_index is not None and current_tool_args is not None:
+                                current_tool_args.append(partial)
+                                tool_calls_state[current_tool_index]["function"]["arguments"] = "".join(current_tool_args)
+                                yield _emit({
+                                    "tool_calls": [{
+                                        "index": current_tool_index,
+                                        "function": {"arguments": partial},
+                                    }],
+                                })
+                    elif etype == "content_block_stop":
+                        current_tool_index = None
+                        current_tool_id = None
+                        current_tool_name = None
+                        current_tool_args = []
+                    elif etype == "message_delta":
+                        usage = obj.get("usage") or {}
+                        total_output = usage.get("output_tokens") or 0
+                        stop_reason = (obj.get("delta") or {}).get("stop_reason")
+                        if stop_reason == "tool_use":
+                            finish_reason = "tool_calls"
+                    elif etype == "error":
+                        err_msg = (obj.get("error") or {}).get("message") or _json.dumps(obj)[:300]
+                        logger.error("上游 Anthropic 流式错误: %s", err_msg)
+                        yield _error_chunk(err_msg)
+                        yield "data: [DONE]\n\n"
+                        return
+        final_reason = finish_reason or ("tool_calls" if tool_calls_state else None)
+        yield _emit({}, fin_reason=final_reason)
+        yield "data: [DONE]\n\n"
+    except Exception as e:
+        logger.error("原生 Anthropic SSE 透传中断: model=%s, 错误=%s", model, e, exc_info=True)
+        err_text = f"LLM provider stream error: {str(e)}"
+        if len(err_text) > 300:
+            err_text = err_text[:300] + "..."
+        yield _error_chunk(err_text)
+        yield "data: [DONE]\n\n"
+    finally:
+        total = total_input + total_output
+        if user is not None and total > 0:
+            try:
+                await _record_usage(
+                    db,
+                    user=user,
+                    model=model,
+                    provider_id=provider_id,
+                    upstream_model=litellm_model,
+                    input_tokens=total_input,
+                    output_tokens=total_output,
+                    stream=True,
+                )
+                await write_audit_log(
+                    db,
+                    action="llm_call",
+                    user_id=user.id,
+                    resource=model,
+                    detail={
+                        "stream": True,
+                        "input_tokens": total_input,
+                        "output_tokens": total_output,
+                        "total_tokens": total,
+                    },
+                )
+                await db.commit()
+            except Exception as e:
+                logger.warning("Failed to record anthropic streaming usage: %s", e)
 
 
 async def _record_usage(
@@ -643,14 +991,37 @@ async def proxy_chat_completion(
     except Exception:
         litellm_model, api_key, api_base, extra_headers = _resolve_provider(model)
 
-    if provider_config is not None and _provider_uses_anthropic_messages(provider_config, api_base):
-        original_stream = bool(stream)
-        if original_stream:
-            raw_request = dict(raw_request)
-            raw_request["stream"] = False
+    if provider_config is not None and _provider_is_anthropic_endpoint(provider_config, api_base):
+        if stream:
+            # Stream incrementally: call /v1/messages with stream=true and
+            # translate the Anthropic SSE (thinking_delta / text_delta) into
+            # OpenAI-format chunks so the client shows reasoning as it arrives
+            # instead of buffering the whole response and dumping it at once.
+            # _stream_anthropic_messages records usage + audit log internally.
+            try:
+                return _stream_anthropic_messages(
+                    model=model,
+                    upstream_model=configured_model_id or litellm_model,
+                    provider_id=provider_config.id,
+                    litellm_model=litellm_model,
+                    db=db,
+                    user=user,
+                    api_key=api_key,
+                    api_base=api_base or "",
+                    raw_request=raw_request,
+                )
+            except HTTPException:
+                raise
+            except Exception as e:
+                logger.error("Anthropic-compatible LLM 流式调用失败: model=%s, 错误=%s", model, e)
+                raise HTTPException(
+                    status_code=status.HTTP_502_BAD_GATEWAY,
+                    detail=f"LLM provider error: {e}",
+                )
+        # Non-streaming: direct synchronous call.
         try:
             anthropic_payload = await _call_anthropic_messages(
-                model=litellm_model,
+                model=configured_model_id or litellm_model,
                 api_key=api_key,
                 api_base=api_base or "",
                 raw_request=raw_request,
@@ -672,11 +1043,137 @@ async def proxy_chat_completion(
             upstream_model=litellm_model,
             input_tokens=input_tokens,
             output_tokens=output_tokens,
-            stream=original_stream,
+            stream=False,
         )
-        if original_stream:
-            return _single_chunk_stream(anthropic_payload, model)
         return _chat_completion_payload_from_anthropic(anthropic_payload, model)
+
+    # 2.5 Raw OpenAI-compatible streaming pass-through.
+    # litellm's acompletion eagerly aggregates the upstream delta stream and
+    # flushes reasoning_content as a single large chunk, which makes the
+    # "thinking" panel appear to hang then dump everything at once. For providers
+    # that speak native OpenAI /chat/completions we bypass litellm and proxy the
+    # upstream SSE bytes verbatim so incremental reasoning is preserved.
+    if (
+        stream
+        and provider_config is not None
+        and api_base
+        and _is_openai_compatible_streaming_provider(provider_config, api_base)
+    ):
+        import json as _json
+
+        raw_body = dict(raw_request)
+        raw_body["model"] = configured_model_id or litellm_model
+        raw_body["stream"] = True
+        if not isinstance(raw_body.get("stream_options"), dict):
+            raw_body["stream_options"] = {"include_usage": True}
+        else:
+            raw_body["stream_options"].setdefault("include_usage", True)
+
+        url = api_base.rstrip("/") + "/chat/completions"
+        headers = {
+            "Content-Type": "application/json",
+            "Accept": "text/event-stream",
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+        }
+        if api_key:
+            headers["Authorization"] = f"Bearer {api_key}"
+        if extra_headers:
+            headers.update(extra_headers)
+
+        logger.info("原生 OpenAI SSE 透传: url=%s model=%s", url, raw_body["model"])
+
+        async def _raw_stream():
+            total_input = 0
+            total_output = 0
+            try:
+                async with httpx.AsyncClient(timeout=None) as client:
+                    async with client.stream("POST", url, json=raw_body, headers=headers) as resp:
+                        if resp.status_code != 200:
+                            err_body = await resp.aread()
+                            err_text = err_body.decode("utf-8", "replace")[:300]
+                            logger.error("上游 LLM 返回错误: %s %s", resp.status_code, err_text)
+                            err_chunk = {
+                                "id": f"platform-error-{int(time.time())}",
+                                "object": "chat.completion.chunk",
+                                "created": int(time.time()),
+                                "model": model,
+                                "choices": [{
+                                    "index": 0,
+                                    "delta": {"content": f"\n\n[Error] LLM provider error: {resp.status_code} {err_text}"},
+                                    "finish_reason": "stop",
+                                }],
+                            }
+                            yield f"data: {_json.dumps(err_chunk)}\n\n"
+                            yield "data: [DONE]\n\n"
+                            return
+                        async for line in resp.aiter_lines():
+                            if not line:
+                                continue
+                            if line.startswith("data:"):
+                                yield f"{line}\n\n"
+                                payload = line[len("data:"):].strip()
+                                if payload and payload != "[DONE]":
+                                    try:
+                                        obj = _json.loads(payload)
+                                        u = obj.get("usage")
+                                        if isinstance(u, dict):
+                                            total_input = u.get("prompt_tokens") or 0
+                                            total_output = u.get("completion_tokens") or 0
+                                    except Exception:
+                                        pass
+                yield "data: [DONE]\n\n"
+            except Exception as e:
+                logger.error(
+                    "原生 SSE 透传中断: model=%s, 错误=%s", model, e, exc_info=True,
+                )
+                err_text = f"LLM provider stream error: {str(e)}"
+                if len(err_text) > 300:
+                    err_text = err_text[:300] + "..."
+                err_chunk = {
+                    "id": f"platform-error-{int(time.time())}",
+                    "object": "chat.completion.chunk",
+                    "created": int(time.time()),
+                    "model": model,
+                    "choices": [{
+                        "index": 0,
+                        "delta": {"content": f"\n\n[Error] {err_text}"},
+                        "finish_reason": "stop",
+                    }],
+                }
+                yield f"data: {_json.dumps(err_chunk)}\n\n"
+                yield "data: [DONE]\n\n"
+            finally:
+                total = total_input + total_output
+                if user is not None and total > 0:
+                    try:
+                        await _record_usage(
+                            db,
+                            user=user,
+                            model=model,
+                            provider_id=provider_config.id if provider_config is not None else None,
+                            upstream_model=litellm_model,
+                            input_tokens=total_input,
+                            output_tokens=total_output,
+                            stream=True,
+                        )
+                        await write_audit_log(
+                            db,
+                            action="llm_call",
+                            user_id=user.id,
+                            resource=model,
+                            detail={
+                                "stream": True,
+                                "input_tokens": total_input,
+                                "output_tokens": total_output,
+                                "total_tokens": total,
+                            },
+                        )
+                        await db.commit()
+                    except Exception as e:
+                        logger.warning("Failed to record raw streaming usage: %s", e)
+
+        return _raw_stream()
 
     # 3. Build kwargs — pass through all known OpenAI-compatible params
     kwargs: dict = {

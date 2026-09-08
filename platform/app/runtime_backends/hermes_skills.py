@@ -53,7 +53,7 @@ def read_installed_marker(docker_id: str) -> dict[str, set[str]]:
     Returns ``{"user": set, "managed": set}``. "user" skills were installed by
     the end user and can be uninstalled; "managed" skills were pushed by an
     admin and the user cannot uninstall them. Until a marker file exists we
-    default to *every* catalog skill being installed as "user" — built-in
+    default to *every* catalog skill being installed as "user" -- built-in
     skills are available out of the box and the user opts out via "卸载".
     Once a marker file exists we trust it literally.
     """
@@ -67,6 +67,13 @@ def read_installed_marker(docker_id: str) -> dict[str, set[str]]:
             if "installed" in data:
                 user |= set(data["installed"])
             managed = set(data.get("managed", []))
+            # NOTE: an *empty* marker ({"user": [], "managed": []}) is a legitimate,
+            # deliberate state — container.manager writes it when the global
+            # "default install all" switch is OFF, so a new user starts with zero
+            # installs. Do NOT "helpfully" fall back to the full catalog here; that
+            # would silently override the admin's switch. (The client side must
+            # therefore allow installing admin-owned skills, otherwise an empty
+            # marker would be a dead end.)
             return {"user": user, "managed": managed}
     except Exception:
         logger.debug("read_installed_marker failed", exc_info=True)
@@ -109,24 +116,159 @@ def clean_scalar(value: str) -> str:
     return value
 
 
-def frontmatter(path: Path) -> dict[str, str]:
+def frontmatter(path: Path) -> dict:
+    # Parse the YAML-ish frontmatter into a flat dict keyed by dotted path.
+    # Supports:
+    #   - top-level scalars:  name: foo  ->  {"name": "foo"}
+    #   - nested groups:      metadata:\n    comworker:\n      requires_connector: lexiang
+    #                                              ->  {"metadata.comworker.requires_connector": "lexiang"}
+    #   - nested lists:       metadata:\n    requires:\n      env:\n        - TOKEN\n        - OTHER
+    #                                              ->  {"metadata.requires.env": ["TOKEN", "OTHER"]}
+    # We deliberately do NOT support arbitrary nesting -- only the two
+    # shapes the skill listing logic cares about. Anything else is ignored.
     try:
         lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
     except OSError:
         return {}
     if not lines or lines[0].strip() != "---":
         return {}
-    result: dict[str, str] = {}
-    for line in lines[1:]:
+    flat: dict[str, object] = {}
+    # Stack of (indent, key, value) frames representing the open groups.
+    # Top of stack is the most recently entered group. A scalar line pops
+    # any deeper frames first, then either opens a new group (value=="")
+    # or sets a leaf on the top frame.
+    stack: list[tuple[int, str]] = []
+    in_body = False
+    for raw in lines[1:]:
+        line = raw.rstrip()
         if line.strip() == "---":
+            in_body = True
             break
-        if ":" not in line or line[:1].isspace():
+        if not line.strip():
             continue
-        key, value = line.split(":", 1)
+        stripped = line.lstrip(" ")
+        indent = len(line) - len(stripped)
+        is_list_item = stripped.startswith("- ")
+        # Sibling-or-deeper frames get popped. A list-item line sits at the
+        # same indent as its parent group key (``bins:`` then ``- python3``
+        # both at column 6) and MUST NOT pop that parent -- only same-or-
+        # deeper *group* frames do.
+        if not is_list_item:
+            while stack and stack[-1][0] >= indent:
+                stack.pop()
+        if is_list_item:
+            # List item -- attach to the deepest group, which must end with one
+            # of the known list-typed leaves (today just `env` and `bins`).
+            if not stack:
+                continue
+            leaf = stack[-1][1]
+            if leaf not in {"env", "bins"}:
+                continue
+            leaf_key = ".".join([k for _, k in stack])
+            existing = flat.get(leaf_key)
+            if not isinstance(existing, list):
+                # First list item: replace the empty dict placeholder with a list.
+                existing = []
+                flat[leaf_key] = existing
+            existing.append(clean_scalar(stripped[2:]))
+            continue
+        if ":" not in stripped:
+            continue
+        key, value = stripped.split(":", 1)
         key = key.strip()
-        if key in {"name", "description"}:
-            result[key] = clean_scalar(value)
-    return result
+        value = value.strip()
+        # Build the dotted path for this entry. If `key` starts with
+        # "metadata." we treat it as a literal nested key (some skill
+        # authors flatten like "metadata.comworker.requires_connector: x").
+        # Otherwise it is relative to the current group stack.
+        if key.startswith("metadata.") and not stack:
+            full_key = key
+        elif stack:
+            full_key = ".".join([k for _, k in stack] + [key])
+        else:
+            full_key = key
+        if value == "":
+            # Opening a new group.
+            stack.append((indent, key))
+            # Pre-create an empty container so callers can read it even if
+            # no scalar ever lands inside.
+            if full_key not in flat:
+                flat[full_key] = {}
+        else:
+            flat[full_key] = clean_scalar(value)
+    if in_body:
+        flat["__end__"] = True
+    return flat
+
+
+def _frontmatter_value(fm: dict, dotted_key: str):
+    # Read a (possibly nested) value out of the flat frontmatter dict.
+    val = fm.get(dotted_key)
+    if val is not None:
+        return val
+    # Fall back: walk a nested dict if the parser happened to build one.
+    parts = dotted_key.split(".")
+    cur: object = fm
+    for part in parts:
+        if not isinstance(cur, dict):
+            return None
+        cur = cur.get(part)
+    return cur
+
+
+def _infer_required_connector(fm: dict) -> str | None:
+    # Best-effort: which platform connector does this skill depend on?
+    #
+    # Returns the connector ``name`` (the value stored in
+    # ``mcp_connectors.name`` -- e.g. ``lexiang``, ``wecom``,
+    # ``tencent_docs``) or ``None`` if we can't tell. Frontmatter wins
+    # (``metadata.comworker.requires_connector``); else we fall back to
+    # scanning any ``*.requires.env`` list for a matching token, and
+    # finally try the ``*.primaryEnv`` scalar. The wildcard match is
+    # intentional: SKILL.md authors nest ``metadata`` under varying
+    # sub-groups (``clawdbot``, ``comworker``, ...) and we only need a
+    # best-effort guess.
+    explicit = _frontmatter_value(fm, "metadata.comworker.requires_connector")
+    if explicit is None:
+        for key, value in fm.items():
+            if isinstance(key, str) and key.endswith("requires_connector") and isinstance(value, str) and value.strip():
+                explicit = value
+                break
+    if isinstance(explicit, str) and explicit.strip():
+        return explicit.strip().lower()
+    tokens: list[str] = []
+    for key, value in fm.items():
+        if isinstance(key, str) and key.endswith(".requires.env") and isinstance(value, list):
+            tokens.extend([t for t in value if isinstance(t, str)])
+    if not tokens:
+        # Some skills declare only a single env via primaryEnv.
+        for key, value in fm.items():
+            if isinstance(key, str) and key.endswith(".primaryEnv") and isinstance(value, str):
+                tokens.append(value)
+    for token in tokens:
+        cleaned = token.strip().upper()
+        for suffix in (
+            "_TOKEN",
+            "_API_KEY",
+            "_AUTH_CODE",
+            "_AUTH_TOKEN",
+            "_SECRET",
+            "_KEY",
+            "_CLIENT_SECRET",
+            "_PASSWORD",
+            "_CLIENTID",
+            "_CLIENT_ID",
+            "_CORP_ID",
+            "_CORPID",
+        ):
+            if cleaned.endswith(suffix):
+                cleaned = cleaned[: -len(suffix)]
+                break
+        if cleaned.startswith("WECOM_"):
+            cleaned = "WECOM"
+        if cleaned:
+            return cleaned.lower().replace("_", "-")
+    return None
 
 
 def dir_fingerprint(path: Path) -> str:
@@ -171,7 +313,7 @@ cat_map = {}
 if isinstance(catalog, dict) and catalog.get("skills"):
     cat_map = catalog["skills"] or {}
 
-# 1) Built-in skills registered in the catalog — classified, deduped by dir name.
+# 1) Built-in skills registered in the catalog -- classified, deduped by dir name.
 covered_dirs = set()
 for name, meta in cat_map.items():
     meta = meta or {}
@@ -190,6 +332,7 @@ for name, meta in cat_map.items():
             "source": "hermes",
             "owner": "admin",
             "disabled": (skill_file.parent / ".comworker-disabled").exists(),
+            "requires_connector": _infer_required_connector(fm),
             "path": name,
             "fingerprint": dir_fingerprint(skill_file.parent),
         }
@@ -249,6 +392,7 @@ for depth, parent, dir_name, fm in by_name.values():
             "source": "hermes",
             "owner": "user",
             "disabled": (parent / ".comworker-disabled").exists(),
+            "requires_connector": _infer_required_connector(fm),
             "path": str(parent.relative_to(root)),
             "fingerprint": dir_fingerprint(parent),
         }
@@ -654,7 +798,26 @@ def list_skills_from_hermes_container(
     agent_id: str | None = None,
     *,
     inherited_global: bool = False,
+    enabled_connector_names: set[str] | None = None,
+    installed_names: set[str] | None = None,
 ) -> list[dict]:
+    """List skills installed in the user's hermes container.
+
+    Args:
+        enabled_connector_names: Set of platform connector ``name``s the user
+            has currently enabled. When provided, every skill dict in the
+            returned list will carry a ``connector_enabled`` flag -- ``True``
+            if the skill has no connector dependency or the required
+            connector is enabled, ``False`` if it depends on a connector that
+            is currently disabled. ``None`` (the default) skips the join and
+            leaves ``connector_enabled`` unset on every skill.
+        installed_names: Set of skill names the user has installed (either
+            explicitly via the skill store, or pushed by an admin). When
+            provided, every skill dict will carry an ``installed`` flag --
+            ``True`` if the skill's name (or directory basename) is in the
+            set, ``False`` otherwise. ``None`` (the default) skips the join
+            and leaves ``installed`` unset on every skill.
+    """
     payload = _raw_skills_from_hermes_container(container_id_or_name, scope, agent_id)
     if scope == "agent" and not inherited_global:
         global_skills = _raw_skills_from_hermes_container(container_id_or_name, scope="global")
@@ -669,10 +832,30 @@ def list_skills_from_hermes_container(
         ]
 
     scope_type, scope_id, scope_label = _scope_metadata(scope, agent_id)
+    enabled_set = enabled_connector_names  # may be None → leave flag unset
+    installed_set = installed_names  # may be None → leave flag unset
     normalized = []
     for item in payload:
         path = str(item.get("path") or item.get("name") or "")
         public_item = {key: value for key, value in item.items() if key != "fingerprint"}
+        required = item.get("requires_connector")
+        if enabled_set is not None:
+            connector_enabled = (
+                not required or str(required).strip().lower() in enabled_set
+            )
+        else:
+            connector_enabled = None
+        # Match by frontmatter name (preferred, falls back to dir basename) so
+        # that the marker file's per-name bookkeeping stays meaningful even
+        # for skills that ship under a catalog-aliased title.
+        skill_name = str(public_item.get("name") or "")
+        dir_name = path.rsplit("/", 1)[-1] if path else skill_name
+        if installed_set is not None:
+            installed = bool(
+                installed_set and (skill_name in installed_set or dir_name in installed_set)
+            )
+        else:
+            installed = None
         normalized.append({
             **public_item,
             "scope": scope_id,
@@ -681,6 +864,9 @@ def list_skills_from_hermes_container(
             "agentId": agent_id if scope == "agent" else None,
             "available": True,
             "disabled": bool(item.get("disabled", False)),
+            "connector_enabled": connector_enabled,
+            "requires_connector": required,
+            "installed": installed,
             "writable": True,
             "dirPath": path,
         })

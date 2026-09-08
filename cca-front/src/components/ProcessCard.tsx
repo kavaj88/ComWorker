@@ -42,26 +42,34 @@ function extractKnowledgePath(toolArgs?: string): { fullPath: string; kbPath: st
   if (!toolArgs) return null;
   // Try JSON first (persisted steps from buildProcessStepsForTurn carry proper
   // JSON toolArgs). Streaming steps carry ev.detail which is a human-readable
-  // preview string, so we fall back to a regex search for /knowledge/<path>.
+  // preview string, so we fall back to a regex search for /knowledge/<path>
+  // (also legacy /knowledge-base/<path>).
+  const findIdx = (s: string): { idx: number; dirLen: number; prefix: string } | null => {
+    const kbIdx = s.lastIndexOf('/knowledge/');
+    const baseIdx = s.lastIndexOf('/knowledge-base/');
+    if (baseIdx > kbIdx) return { idx: baseIdx, dirLen: '/knowledge-base/'.length, prefix: '/knowledge-base/' };
+    if (kbIdx >= 0) return { idx: kbIdx, dirLen: '/knowledge/'.length, prefix: '/knowledge/' };
+    return null;
+  };
   try {
     const parsed = JSON.parse(toolArgs);
     const p = parsed?.path;
     if (typeof p === 'string') {
-      const idx = p.indexOf('/knowledge/');
-      if (idx !== -1) {
-        const kbPath = p.slice(idx + '/knowledge/'.length);
+      const found = findIdx(p);
+      if (found) {
+        const kbPath = p.slice(found.idx + found.dirLen);
         if (kbPath) return { fullPath: p, kbPath };
       }
     }
   } catch {
     // Not JSON - fall through to regex
   }
-  const idx = toolArgs.indexOf('/knowledge/');
-  if (idx !== -1) {
-    const after = toolArgs.slice(idx + '/knowledge/'.length);
+  const found = findIdx(toolArgs);
+  if (found) {
+    const after = toolArgs.slice(found.idx + found.dirLen);
     const match = after.match(/^([^\s"',}\]]+)/);
     if (match && match[1]) {
-      return { fullPath: '/knowledge/' + match[1], kbPath: match[1] };
+      return { fullPath: found.prefix + match[1], kbPath: match[1] };
     }
   }
   return null;

@@ -1,15 +1,13 @@
 "use client";
 
 import { useEffect, useMemo, useState, useRef } from "react";
-import { Loader2, Upload, Trash2, Pencil, ToggleLeft, ToggleRight, Send, Users, Package, UserPlus } from "lucide-react";
+import { Loader2, Upload, Trash2, Pencil, ToggleLeft, ToggleRight, Send, Package, UserPlus } from "lucide-react";
 import {
   getPlatformSkills,
   uploadPlatformSkill,
   deleteSkill,
   updateSkill,
   togglePlatformSkill,
-  adminPushSkillToAllUsers,
-  adminInstallSkillToUser,
   getAdminCatalogSkills,
   getDefaultInstall,
   setSkillDefaultInstall,
@@ -25,7 +23,6 @@ import {
 import type { UserSummary } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import UserPickerModal from "@/components/UserPickerModal";
 import PushUsersModal from "@/components/PushUsersModal";
 
 type UnifiedSkill = {
@@ -52,7 +49,6 @@ export default function SkillsPage() {
   const [activeCategory, setActiveCategory] = useState<string | null>(null);
   const [selectedKeys, setSelectedKeys] = useState<Set<string>>(new Set());
   const [batchBusy, setBatchBusy] = useState(false);
-  const [showUserPicker, setShowUserPicker] = useState(false);
   const [showEdit, setShowEdit] = useState(false);
   const [showPerUser, setShowPerUser] = useState(false);
   const [showPushUsers, setShowPushUsers] = useState(false);
@@ -188,50 +184,19 @@ export default function SkillsPage() {
     }
   }
 
-  async function handlePushToAll() {
-    if (!confirm(`确定把选中的 ${selectedSkills.length} 个技能推送给所有现存用户？`)) return;
-    setBatchBusy(true);
-    setMessage("");
-    try {
-      for (const skill of selectedSkills) {
-        const res = await adminPushSkillToAllUsers(skill.name);
-        let msg = `已推送 "${res.name}"：${res.pushed}/${res.total} 个用户成功`;
-        if (res.failed.length) msg += `，${res.failed.length} 个失败`;
-        setMessage(msg);
-      }
-    } catch (err) {
-      setMessage(err instanceof Error ? err.message : "推送失败");
-    } finally {
-      setBatchBusy(false);
-    }
-  }
-
-  async function handleAssignToUser(user: UserSummary) {
-    if (selectedSkills.length === 0) return;
-    setShowUserPicker(false);
-    setBatchBusy(true);
-    try {
-      for (const skill of selectedSkills) {
-        await adminInstallSkillToUser(user.id, skill.name);
-      }
-      setMessage(`已为 ${user.username} 安装 ${selectedSkills.length} 个技能（系统级，用户不可卸载）`);
-    } catch (err) {
-      setMessage(err instanceof Error ? err.message : "安装失败");
-    } finally {
-      setBatchBusy(false);
-    }
-  }
-
   async function handlePushToUsers(userIds: string[]) {
     if (selectedSkills.length === 0) return;
     setBatchBusy(true);
+    setMessage("");
     try {
+      const lines: string[] = [];
       for (const skill of selectedSkills) {
         const res = await pushSkillToUsers(skill.name, userIds);
         let msg = `已推送「${res.name}」：${res.pushed}/${res.total} 个用户成功`;
         if (res.failed.length) msg += `，${res.failed.length} 个失败`;
-        setMessage(msg);
+        lines.push(msg);
       }
+      setMessage(lines.join("；"));
     } catch (err) {
       setMessage(err instanceof Error ? err.message : "推送失败");
     } finally {
@@ -269,7 +234,7 @@ export default function SkillsPage() {
       <div className="mb-2">
         <h1 className="text-2xl font-bold">技能管理</h1>
         <p className="text-sm text-gray-500 mt-1">
-          统一管理内置技能与自建技能。选中卡片后在上方工具栏操作；内置技能可编辑/删除/推送/指派，自建技能归为「自建技能」分类。
+          统一管理内置技能与自建技能。选中卡片（可多选）后在上方工具栏操作；可批量设默认、删除，也可把选中的多个技能一次性推送给多个指定用户。自建技能归为「自建技能」分类。
         </p>
       </div>
 
@@ -293,13 +258,17 @@ export default function SkillsPage() {
         />
         <div className="ml-auto flex flex-wrap items-center gap-1.5">
           <button
-            title="默认安装（新用户）"
+            title="默认安装（新用户），可多选"
             disabled={selectedKeys.size === 0 || batchBusy}
             onClick={() => handleToggleDefault()}
             className="inline-flex items-center gap-1 rounded-md border px-2.5 py-2 text-sm text-muted-foreground hover:text-foreground disabled:opacity-40"
           >
-            {singleSelected?.enabled ? <ToggleRight className="h-4 w-4 text-green-600" /> : <ToggleLeft className="h-4 w-4" />}
-            {singleSelected?.enabled ? "取消默认" : "设默认"}
+            {selectedSkills.length > 0 && selectedSkills.every((s) => s.enabled) ? (
+              <ToggleRight className="h-4 w-4 text-green-600" />
+            ) : (
+              <ToggleLeft className="h-4 w-4" />
+            )}
+            {selectedSkills.length > 0 && selectedSkills.every((s) => s.enabled) ? "取消默认" : "设默认"}
           </button>
           <button
             title="编辑"
@@ -310,28 +279,12 @@ export default function SkillsPage() {
             <Pencil className="h-4 w-4" /> 编辑
           </button>
           <button
-            title="推送给所有用户"
+            title="推送给指定用户（可多选技能、多选用户）"
             disabled={selectedKeys.size === 0 || batchBusy}
-            onClick={() => handlePushToAll()}
-            className="inline-flex items-center gap-1 rounded-md border px-2.5 py-2 text-sm text-muted-foreground hover:text-foreground disabled:opacity-40"
-          >
-            <Users className="h-4 w-4" /> 推送
-          </button>
-          <button
-            title="推送给指定用户（多选）"
-            disabled={selectedKeys.size !== 1 || batchBusy}
             onClick={() => setShowPushUsers(true)}
             className="inline-flex items-center gap-1 rounded-md border px-2.5 py-2 text-sm text-muted-foreground hover:text-foreground disabled:opacity-40"
           >
             <Send className="h-4 w-4" /> 推送给指定用户
-          </button>
-          <button
-            title="指派给指定用户"
-            disabled={selectedKeys.size !== 1 || batchBusy}
-            onClick={() => setShowUserPicker(true)}
-            className="inline-flex items-center gap-1 rounded-md border px-2.5 py-2 text-sm text-muted-foreground hover:text-foreground disabled:opacity-40"
-          >
-            <Send className="h-4 w-4" /> 推送给用户
           </button>
           <button
             title="按用户安装/卸载"
@@ -448,16 +401,9 @@ export default function SkillsPage() {
         })}
       </div>
 
-      <UserPickerModal
-        open={showUserPicker}
-        title="指派技能给指定用户"
-        onClose={() => setShowUserPicker(false)}
-        onSelect={handleAssignToUser}
-      />
-
       <PushUsersModal
         open={showPushUsers}
-        title="推送给指定用户（多选）"
+        title={`推送 ${selectedSkills.length} 个技能给指定用户`}
         confirmLabel="推送"
         onClose={() => setShowPushUsers(false)}
         onPush={handlePushToUsers}

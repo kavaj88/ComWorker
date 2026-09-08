@@ -537,6 +537,22 @@ def strip_think_blocks(agent, content: str) -> str:
             content,
             flags=re.DOTALL | re.IGNORECASE,
         )
+    # 1b2. 未闭合的 tool-call 片段（GLM 等模型在 assistant content 里直接写
+    #      XML 计划文本，例如
+    #      `<tool_call>skill_view(name="x")<tool_call>read_file(path="y")`，
+    #      没有闭合标签）。这是模型"内心独白"式的工具调用描述，并非真实
+    #      调用——真实调用走结构化 tool_calls 字段，不在此 content 文本里，
+    #      故从此处清理是安全的，也不会影响实际工具执行。之前 1b 只处理了
+    #      闭合的 <tool_call>...</tool_call>，未闭合片段会原样泄漏到用户可见
+    #      的主消息区（#ComWorker）。
+    content = re.sub(
+        r'<(?:tool_call|tool_calls|function_call|function_calls)\b[^>]*>'
+        r'(?:(?:(?!<(?:tool_call|tool_calls|function_call|function_calls)\b).)*?)'
+        r'(?=(?:</?(?:tool_call|tool_calls|function_call|function_calls)\b)|$)',
+        '',
+        content,
+        flags=re.DOTALL | re.IGNORECASE,
+    )
     # 1c. <function name="...">...</function> — Gemma-style standalone
     #     tool call. Only strip when the tag sits at a block boundary
     #     (start of text, after a newline, or after sentence-ending

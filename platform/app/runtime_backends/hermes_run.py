@@ -222,6 +222,16 @@ def sanitize_hermes_messages(messages: list[Any]) -> list[Any]:
             continue
         if _is_verification_stop_nudge(message):
             continue
+        # Drop hermes' internal context-compaction summaries. They are flagged
+        # with the underscore-prefixed ``_compressed_summary`` metadata key
+        # (see hermes-agent/agent/context_compressor.py:COMPRESSED_SUMMARY_METADATA_KEY).
+        # Stripping them keeps the chat surface clean: without this guard,
+        # a fallback compression summary leaks into the user-visible history
+        # and makes the dialog feel randomly reordered (the synthetic message
+        # often takes ``role="user"`` because hermes flips roles to avoid
+        # consecutive same-role alternation).
+        if message.get("_compressed_summary"):
+            continue
         sanitized = sanitize_hermes_message(message)
         content = sanitized.get("content")
         if sanitized.get("role") == "assistant" and isinstance(content, str) and is_tool_result_content(content):

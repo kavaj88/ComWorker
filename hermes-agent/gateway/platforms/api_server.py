@@ -731,6 +731,7 @@ try:
         resume_job as _cron_resume,
         trigger_job as _cron_trigger,
     )
+    from cron.scheduler import run_one_job
     _CRON_AVAILABLE = True
 except ImportError:
     _cron_list = None
@@ -741,6 +742,7 @@ except ImportError:
     _cron_pause = None
     _cron_resume = None
     _cron_trigger = None
+    run_one_job = None
 
 
 def _notify_cron_provider_jobs_changed() -> None:
@@ -3447,7 +3449,13 @@ class APIServerAdapter(BasePlatformAdapter):
             return web.json_response({"error": str(e)}, status=500)
 
     async def _handle_run_job(self, request: "web.Request") -> "web.Response":
-        """POST /api/jobs/{job_id}/run — trigger immediate execution."""
+        """POST /api/jobs/{job_id}/run — execute the job immediately.
+
+        Triggering only arms the job to fire on the next scheduler tick, which
+        made the UI feel unresponsive (up to 60s wait). We now arm it and then
+        run it synchronously, returning the updated job record so the client
+        can refresh immediately.
+        """
         auth_err = self._check_auth(request)
         if auth_err:
             return auth_err
@@ -3461,8 +3469,16 @@ class APIServerAdapter(BasePlatformAdapter):
             job = _cron_trigger(job_id)
             if not job:
                 return web.json_response({"error": "Job not found"}, status=404)
-            return web.json_response({"job": job})
+            loop = asyncio.get_running_loop()
+            success = await asyncio.to_thread(run_one_job, job, adapters=None, loop=loop, verbose=False)
+            # Re-read the job after execution so the response reflects
+            # last_run_at / last_status / next_run_at updates.
+            job = _cron_get(job_id)
+            if not job:
+                return web.json_response({"error": "Job not found after run"}, status=404)
+            return web.json_response({"ok": success, "job": job})
         except Exception as e:
+            logger.exception("Failed to run cron job %s", job_id)
             return web.json_response({"error": str(e)}, status=500)
 
     async def _handle_cron_fire(self, request: "web.Request") -> "web.Response":

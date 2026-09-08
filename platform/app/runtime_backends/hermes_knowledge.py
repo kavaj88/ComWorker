@@ -62,7 +62,14 @@ action = sys.argv[2]
 query = sys.argv[3] if len(sys.argv) > 3 else ""
 requested_path = sys.argv[4] if len(sys.argv) > 4 else ""
 
-base = os.path.realpath(os.path.join(root, "profiles", agent_id, "workspace", "knowledge"))
+CANONICAL_KB_DIR = "knowledge"
+# Legacy/alternate KB directory names the agent has been observed to write into
+# (e.g. models invent "knowledge-base/"). Index them too so files the agent
+# saved there still show up in the Knowledge Base menu instead of silently
+# vanishing. New writes should always target the canonical "knowledge/".
+LEGACY_KB_DIRS = ("knowledge-base",)
+
+base = os.path.realpath(os.path.join(root, "profiles", agent_id, "workspace", CANONICAL_KB_DIR))
 profiles = os.path.realpath(os.path.join(root, "profiles"))
 
 def fail(code, detail):
@@ -72,11 +79,23 @@ def fail(code, detail):
 if not base.startswith(profiles + os.sep):
     fail(2, "Knowledge path is unavailable")
 
+all_bases = [base]
+for legacy_dir in LEGACY_KB_DIRS:
+    legacy_base = os.path.realpath(os.path.join(root, "profiles", agent_id, "workspace", legacy_dir))
+    if legacy_base.startswith(profiles + os.sep) and legacy_base != base and legacy_base not in all_bases:
+        all_bases.append(legacy_base)
+
 def iso(ts):
     return datetime.fromtimestamp(ts, timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
 
+def owner_base(path):
+    for candidate in all_bases:
+        if path == candidate or path.startswith(candidate + os.sep):
+            return candidate
+    return None
+
 def rel_for(path):
-    return os.path.relpath(path, base).replace(os.sep, "/")
+    return os.path.relpath(path, owner_base(path) or base).replace(os.sep, "/")
 
 def clean_wikilink_target(value):
     return (value.split("|", 1)[0].split("#", 1)[0]).strip()
@@ -172,25 +191,26 @@ def read_text(path):
 
 def pages():
     results = []
-    if not os.path.isdir(base):
-        return results
-    for current, dirs, files in os.walk(base):
-        dirs[:] = [d for d in dirs if d not in {".git", "node_modules", "__pycache__"}]
-        for filename in files:
-            if not filename.lower().endswith(".md"):
-                continue
-            full = os.path.realpath(os.path.join(current, filename))
-            if not full.startswith(base + os.sep):
-                continue
-            try:
-                stat = os.stat(full)
-                raw = read_text(full)
-                if raw is None:
+    for walk_base in all_bases:
+        if not os.path.isdir(walk_base):
+            continue
+        for current, dirs, files in os.walk(walk_base):
+            dirs[:] = [d for d in dirs if d not in {".git", "node_modules", "__pycache__"}]
+            for filename in files:
+                if not filename.lower().endswith(".md"):
                     continue
-                meta, content = page_meta(rel_for(full), raw, stat)
-            except OSError:
-                continue
-            results.append({"meta": meta, "content": content, "raw": raw})
+                full = os.path.realpath(os.path.join(current, filename))
+                if owner_base(full) != walk_base:
+                    continue
+                try:
+                    stat = os.stat(full)
+                    raw = read_text(full)
+                    if raw is None:
+                        continue
+                    meta, content = page_meta(rel_for(full), raw, stat)
+                except OSError:
+                    continue
+                results.append({"meta": meta, "content": content, "raw": raw})
     results.sort(key=lambda item: (item["meta"].get("updated") or item["meta"].get("modified") or "", item["meta"]["path"]), reverse=True)
     return results
 
@@ -216,22 +236,27 @@ def safe_page_path(value):
     normalized = os.path.normpath(value).replace("\\", "/")
     if not normalized or normalized in {".", ".."} or normalized.startswith("../") or not normalized.lower().endswith(".md"):
         fail(2, "Knowledge page path is unavailable")
-    full = os.path.realpath(os.path.join(base, normalized))
-    if not full.startswith(base + os.sep):
-        fail(2, "Knowledge page path is unavailable")
-    return full, normalized
+    # Resolve against the canonical knowledge root first, then any legacy
+    # directory the agent may have written into (knowledge-base/ etc.).
+    for candidate in all_bases:
+        full = os.path.realpath(os.path.join(candidate, normalized))
+        if full.startswith(candidate + os.sep):
+            return full, normalized
+    fail(2, "Knowledge page path is unavailable")
 
 items = pages()
 
 if action == "list":
     attachments = []
     directories = []
-    if os.path.isdir(base):
-        for current, dirs, files in os.walk(base):
+    for walk_base in all_bases:
+        if not os.path.isdir(walk_base):
+            continue
+        for current, dirs, files in os.walk(walk_base):
             dirs[:] = [d for d in dirs if d not in {".git", "node_modules", "__pycache__"}]
             for dirname in dirs:
                 full = os.path.realpath(os.path.join(current, dirname))
-                if not full.startswith(base + os.sep):
+                if owner_base(full) != walk_base:
                     continue
                 try:
                     directories.append(directory_meta(rel_for(full), os.stat(full)))
@@ -241,7 +266,7 @@ if action == "list":
                 if filename.lower().endswith(".md"):
                     continue
                 full = os.path.realpath(os.path.join(current, filename))
-                if not full.startswith(base + os.sep):
+                if owner_base(full) != walk_base:
                     continue
                 try:
                     attachments.append(attachment_meta(rel_for(full), os.stat(full)))
@@ -252,7 +277,7 @@ if action == "list":
     print(json.dumps({
         "agentId": agent_id,
         "knowledgeRoot": f"profiles/{agent_id}/workspace/knowledge",
-        "exists": os.path.isdir(base),
+        "exists": any(os.path.isdir(candidate) for candidate in all_bases),
         "pages": [item["meta"] for item in items],
         "directories": directories,
         "attachments": attachments,

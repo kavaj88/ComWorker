@@ -18,9 +18,23 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 TEMPLATE_DIR = ROOT / "delivery" / "offline"
 VERSION_MARKER = "__COMWORKER_VERSION__"
-APT_DEBIAN_MIRROR = "https://mirrors.aliyun.com/debian"
-APT_SECURITY_MIRROR = "https://mirrors.aliyun.com/debian-security"
+APT_DEBIAN_MIRROR = "http://mirrors.aliyun.com/debian"
+APT_SECURITY_MIRROR = "http://mirrors.aliyun.com/debian-security"
 PIP_INDEX_URL = "https://pypi.tuna.tsinghua.edu.cn/simple"
+BUILDER_VERSION = "2"
+ALLOWED_ROOT_FILES = {
+    ".env.example",
+    "LICENSE",
+    "THIRD_PARTY_NOTICES.md",
+    "checksums.sha256",
+    "compose.yml",
+    "comworker.ps1",
+    "comworker.sh",
+    "install.ps1",
+    "install.sh",
+    "manifest.json",
+    "安装.bat",
+}
 FORBIDDEN_ROOTS = {
     ".git",
     "secrets",
@@ -94,6 +108,27 @@ def render_template(content: str, version: str) -> str:
     return rendered
 
 
+def source_metadata(*, allow_dirty: bool) -> dict[str, object]:
+    """返回本次构建对应的源码提交和发布资格。"""
+    commit = run(
+        ["git", "rev-parse", "HEAD"],
+        capture_output=True,
+    ).stdout.strip()
+    status = run(
+        ["git", "status", "--porcelain=v1", "--untracked-files=all"],
+        capture_output=True,
+    ).stdout.strip()
+    dirty = bool(status)
+    if dirty and not allow_dirty:
+        raise PackageError("工作区存在未提交改动；正式发布前请提交代码，测试构建可使用 --allow-dirty")
+    return {
+        "commit": commit,
+        "dirty": dirty,
+        "publishable": not dirty,
+        "builder_version": BUILDER_VERSION,
+    }
+
+
 def find_forbidden_entries(root: Path) -> list[str]:
     forbidden: list[str] = []
     for path in sorted(root.rglob("*")):
@@ -112,6 +147,31 @@ def find_forbidden_entries(root: Path) -> list[str]:
         if is_forbidden:
             forbidden.append(relative.as_posix())
     return forbidden
+
+
+def delivery_files(root: Path) -> set[str]:
+    """列出交付目录中的全部文件，统一使用 POSIX 相对路径。"""
+    return {
+        path.relative_to(root).as_posix()
+        for path in root.rglob("*")
+        if path.is_file()
+    }
+
+
+def allowed_delivery_files(root: Path) -> set[str]:
+    """根据受控根文件和 docs/images 资源计算允许集合。"""
+    allowed = set(ALLOWED_ROOT_FILES)
+    allowed.update(
+        path.relative_to(root).as_posix()
+        for prefix in ("docs", "images")
+        for path in (root / prefix).rglob("*")
+        if path.is_file()
+    )
+    return allowed
+
+
+def find_unexpected_entries(root: Path) -> list[str]:
+    return sorted(delivery_files(root) - allowed_delivery_files(root))
 
 
 def zip_compression_for(path: Path) -> int:
@@ -162,6 +222,8 @@ def build_commands(version: str, platform: str) -> list[list[str]]:
             "build",
             "--platform",
             target,
+            "--build-arg",
+            f"PIP_INDEX_URL={PIP_INDEX_URL}",
             "-f",
             "platform/Dockerfile",
             "-t",
@@ -246,7 +308,13 @@ def build_images(version: str, platform: str) -> None:
     sync_build_metadata()
     for command in build_commands(version, platform):
         run(command)
-    run(["docker", "pull", "postgres:16-alpine"])
+    postgres = run(
+        ["docker", "image", "inspect", "postgres:16-alpine"],
+        check=False,
+        capture_output=True,
+    )
+    if postgres.returncode != 0:
+        run(["docker", "pull", "postgres:16-alpine"])
     run(["docker", "tag", "postgres:16-alpine", "comworker-postgres:16-alpine"])
 
 
@@ -331,6 +399,14 @@ def copy_rendered_templates(destination: Path, version: str) -> None:
             relative = Path(".env.example")
         target = destination / relative
         target.parent.mkdir(parents=True, exist_ok=True)
+        # 二进制资源（图片、字体等）直接原样拷贝，不做模板文本渲染，
+        # 否则 read_text() 会在 jpg/png 等二进制文件上抛 UnicodeDecodeError。
+        if source.suffix.lower() in {
+            ".jpg", ".jpeg", ".png", ".gif", ".webp", ".ico",
+            ".bmp", ".tiff", ".svg", ".woff", ".woff2", ".ttf", ".otf",
+        }:
+            shutil.copy2(source, target)
+            continue
         content = source.read_text(encoding="utf-8")
         target.write_text(render_template(content, version), encoding="utf-8", newline="\n")
         if target.suffix == ".sh":
@@ -347,6 +423,35 @@ def write_checksums(root: Path) -> Path:
     return checksum_path
 
 
+def verify_checksums(root: Path) -> list[str]:
+    """验证校验清单，返回稳定、可测试的错误列表。"""
+    checksum_path = root / "checksums.sha256"
+    if not checksum_path.is_file():
+        return ["missing: checksums.sha256"]
+    errors: list[str] = []
+    pattern = re.compile(r"^([0-9a-fA-F]{64})\s+\*?(.+)$")
+    for line_number, raw_line in enumerate(
+        checksum_path.read_text(encoding="utf-8").splitlines(),
+        start=1,
+    ):
+        match = pattern.fullmatch(raw_line)
+        if not match:
+            errors.append(f"invalid line {line_number}")
+            continue
+        expected, relative_text = match.groups()
+        # Path('/') 在 Windows 上不是分隔符替换工具，直接按 POSIX 段重建。
+        parts = relative_text.split("/")
+        if not parts or any(part in {"", ".", ".."} for part in parts):
+            errors.append(f"unsafe path: {relative_text}")
+            continue
+        target = root.joinpath(*parts)
+        if not target.is_file():
+            errors.append(f"missing: {relative_text}")
+        elif sha256_file(target).lower() != expected.lower():
+            errors.append(f"mismatch: {relative_text}")
+    return errors
+
+
 def create_delivery_tree(
     *,
     work_dir: Path,
@@ -354,6 +459,7 @@ def create_delivery_tree(
     platform: str,
     archive: Path,
     images: list[dict[str, object]],
+    source: dict[str, object] | None = None,
 ) -> Path:
     _, arch = normalize_platform(platform)
     root = work_dir / package_root_name(version, arch)
@@ -369,6 +475,12 @@ def create_delivery_tree(
         "version": version,
         "platform": f"linux/{arch}",
         "created_at": dt.datetime.now(dt.timezone.utc).isoformat(),
+        "source": source or {
+            "commit": "unknown",
+            "dirty": True,
+            "publishable": False,
+            "builder_version": BUILDER_VERSION,
+        },
         "archive": {
             "path": packaged_archive.relative_to(root).as_posix(),
             "sha256": sha256_file(packaged_archive),
@@ -384,7 +496,13 @@ def create_delivery_tree(
     forbidden = find_forbidden_entries(root)
     if forbidden:
         raise PackageError("交付目录包含禁止内容: " + ", ".join(forbidden))
+    unexpected = find_unexpected_entries(root)
+    if unexpected:
+        raise PackageError("交付目录包含非允许文件: " + ", ".join(unexpected))
     write_checksums(root)
+    checksum_errors = verify_checksums(root)
+    if checksum_errors:
+        raise PackageError("交付目录校验失败: " + ", ".join(checksum_errors))
     return root
 
 
@@ -411,6 +529,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--output-dir", default="dist")
     parser.add_argument("--skip-build", action="store_true")
     parser.add_argument("--keep-work-dir", action="store_true")
+    parser.add_argument("--allow-dirty", action="store_true")
     return parser.parse_args(argv)
 
 
@@ -429,6 +548,7 @@ def main(argv: list[str] | None = None) -> int:
     work_dir.mkdir()
 
     try:
+        source = source_metadata(allow_dirty=args.allow_dirty)
         ensure_docker()
         if not args.skip_build:
             build_images(version, platform)
@@ -440,9 +560,16 @@ def main(argv: list[str] | None = None) -> int:
             platform=platform,
             archive=archive,
             images=images,
+            source=source,
         )
         output_path = output_dir / f"{package_root_name(version, arch)}.zip"
         create_zip(delivery_root, output_path)
+        external_checksum = output_path.with_name(output_path.name + ".sha256")
+        external_checksum.write_text(
+            f"{sha256_file(output_path)}  {output_path.name}\n",
+            encoding="utf-8",
+            newline="\n",
+        )
         log(f"离线包: {output_path}")
         log(f"大小: {output_path.stat().st_size / (1024**3):.2f} GiB")
         log(f"SHA-256: {sha256_file(output_path)}")

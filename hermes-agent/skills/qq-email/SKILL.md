@@ -5,6 +5,9 @@ description_zh: "QQ邮箱收发邮件（IMAP/SMTP），支持发信、收信、�
 description_en: "Send & receive QQ Mail via IMAP/SMTP with Node.js scripts"
 version: 1.0.0
 allowed-tools: Read,Write,Bash
+metadata:
+  comworker:
+    requires_connector: qq-mail
 ---
 
 ## 何时使用

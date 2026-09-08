@@ -124,6 +124,7 @@ def bootstrap_secrets_into_env() -> None:
         "jwt_secret": "PLATFORM_JWT_SECRET",
         "model_keys_master_key": "PLATFORM_MODEL_KEYS_MASTER_KEY",
         "admin_password": "PLATFORM_ADMIN_PASSWORD",
+        "hermes_api_key": "PLATFORM_DEDICATED_HERMES_API_KEY",
     }
     for secret_name, env_name in mapping.items():
         value = read_secret_file(secret_name)

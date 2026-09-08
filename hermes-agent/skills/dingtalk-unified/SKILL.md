@@ -5,6 +5,9 @@ description_zh: 钉钉 CLI 套件，覆盖消息、日历、待办、审批、�
 description_en: DingTalk CLI suite powered by dws, covering messages, calendar, todo, approvals, attendance, reports, docs, AI tables, drive, meeting minutes, mail and more
 version: 1.0.5
 dws_cli_version: ">=1.0.26"
+metadata:
+  comworker:
+    requires_connector: dingtalk
 ---
 
 # 钉钉套件（DingTalk Unified）

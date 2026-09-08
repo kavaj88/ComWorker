@@ -88,7 +88,7 @@ class Settings(BaseSettings):
     hermes_image: str = "comworker-hermes-agent:latest"
     dedicated_hermes_url: str = ""
     dedicated_hermes_internal_port: int = 18080
-    dedicated_hermes_api_key: str = "dev-hermes-bridge-key"
+    dedicated_hermes_api_key: str = ""
     dedicated_hermes_default_provider: str = "custom"
     dedicated_hermes_default_base_url: str = "http://gateway:8080/llm/v1"
     dedicated_hermes_default_api_key: str = "platform-proxy"
@@ -98,9 +98,9 @@ class Settings(BaseSettings):
 
     # Shared runtime endpoints/tokens (Hermes shared runtime)
     shared_hermes_url: str = "http://shared-comworker:8080"
-    shared_hermes_api_key: str = "dev-hermes-bridge-key"
-    user_container_publish_ports: bool = True
-    user_container_bind_ip: str = "0.0.0.0"
+    shared_hermes_api_key: str = ""
+    user_container_publish_ports: bool = False
+    user_container_bind_ip: str = "127.0.0.1"
     container_tz: str = "Asia/Shanghai"
     # 🟢 提升资源限制（适合浏览器/agent）
     container_memory_limit: str = "2g"  # 原来 512m

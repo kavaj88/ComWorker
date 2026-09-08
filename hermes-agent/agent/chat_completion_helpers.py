@@ -1934,13 +1934,23 @@ def interruptible_streaming_api_call(agent, api_kwargs: dict, *, on_first_delta=
                 _fire_first_delta()
                 agent._fire_reasoning_delta(reasoning_text)
 
-            # Accumulate text content — fire callback only when no tool calls
+            # Accumulate text content — fire callback only when no tool calls.
+            # If this chunk also carries structured reasoning (reasoning_content
+            # or reasoning), do NOT stream the content in the same chunk:
+            # some providers emit the chain-of-thought in both the dedicated
+            # reasoning field and in delta.content, which makes the same
+            # thinking text leak into the main message below the reasoning box.
+            # We still accumulate the content for the final response because
+            # build_assistant_message strips explicit <thinking> tags; only
+            # the live stream callback is suppressed when reasoning is present.
             if delta and delta.content:
                 content_parts.append(delta.content)
+                _content_is_reasoning_chunk = bool(reasoning_text)
                 if not tool_calls_acc:
-                    _fire_first_delta()
-                    agent._fire_stream_delta(delta.content)
-                    deltas_were_sent["yes"] = True
+                    if not _content_is_reasoning_chunk:
+                        _fire_first_delta()
+                        agent._fire_stream_delta(delta.content)
+                        deltas_were_sent["yes"] = True
                 # Tool calls suppress regular content streaming (avoids
                 # displaying chatty "I'll use the tool..." text alongside
                 # tool calls).  But reasoning tags embedded in suppressed
@@ -1953,11 +1963,12 @@ def interruptible_streaming_api_call(agent, api_kwargs: dict, *, on_first_delta=
                 # suppressed by the CLI's _stream_delta when the stream
                 # box is already closed (tool boundary flush).
                 elif agent.stream_delta_callback:
-                    try:
-                        agent.stream_delta_callback(delta.content)
-                        agent._record_streamed_assistant_text(delta.content)
-                    except Exception:
-                        pass
+                    if not _content_is_reasoning_chunk:
+                        try:
+                            agent.stream_delta_callback(delta.content)
+                            agent._record_streamed_assistant_text(delta.content)
+                        except Exception:
+                            pass
 
             # Accumulate tool call deltas — notify display on first name
             if delta and delta.tool_calls:

@@ -7,6 +7,8 @@ description_en: Tencent Docs cloud platform for creating, editing & managing onl
 version: 1.0.31
 homepage: https://docs.qq.com/home
 metadata:
+  comworker:
+    requires_connector: tencent_docs
   clawdbot:
     primaryEnv: TENCENT_DOCS_TOKEN
     category: tencent

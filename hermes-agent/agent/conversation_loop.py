@@ -52,6 +52,7 @@ from agent.model_metadata import (
     estimate_request_tokens_rough,
     get_context_length_from_provider_error,
     parse_available_output_tokens_from_error,
+    parse_model_output_cap_from_error,
     save_context_length,
 )
 from agent.process_bootstrap import _install_safe_stdio
@@ -3088,6 +3089,62 @@ def run_conversation(
                     classified.reason == FailoverReason.context_overflow
                 )
 
+                # ── Output-cap-too-large handling (model hard output ceiling) ──
+                # Handles BOTH shapes of a "max_tokens too large" rejection:
+                #   • input + requested_output > context WINDOW
+                #       (Anthropic "available_tokens: N", OpenRouter/Nous, LM Studio)
+                #       → parse_available_output_tokens_from_error
+                #   • the model's own OUTPUT ceiling is below the requested max_tokens
+                #       (Volces Ark "expected a value <= 32768, but got 128000",
+                #        OpenAI-compatible "max_tokens ... must be <= 16384", etc.)
+                #       → parse_model_output_cap_from_error
+                # In every case the fix is identical: cap the OUTPUT budget for
+                # this call and retry — do NOT shrink context_length and do NOT
+                # run history compression.  This makes capped models like
+                # kimi-k2.7-code work out-of-the-box with zero per-model config,
+                # and prevents the old 400→context_overflow misroute that dumped
+                # deterministic fallback summaries into the chat surface.
+                available_out = parse_available_output_tokens_from_error(error_msg)
+                if available_out is None:
+                    available_out = parse_model_output_cap_from_error(error_msg)
+                if available_out is not None:
+                    safe_out = max(1, available_out - 64)  # small safety margin
+                    agent._ephemeral_max_output_tokens = safe_out
+                    # Always-on (non-verbose) audit line so capped-model
+                    # auto-recovery is visible in production logs without
+                    # flipping verbose_logging on.
+                    logger.warning(
+                        f"{agent.log_prefix}Output cap too large for model "
+                        f"{getattr(agent, 'model', '?')}: API rejected max_tokens, "
+                        f"auto-retrying with max_tokens={safe_out:,} "
+                        f"(limit={available_out:,}; context_length unchanged at {_ctx_len:,})"
+                    )
+                    agent._buffer_vprint(
+                        f"⚠️  Output cap too large — "
+                        f"retrying with max_tokens={safe_out:,} "
+                        f"(limit={available_out:,}; context_length unchanged at {_ctx_len:,})"
+                    )
+                    # Count against compression_attempts so a persistently
+                    # failing cap cannot loop forever.
+                    compression_attempts += 1
+                    if compression_attempts > max_compression_attempts:
+                        agent._flush_status_buffer()
+                        agent._vprint(f"{agent.log_prefix}❌ Max compression attempts ({max_compression_attempts}) reached.", force=True)
+                        agent._vprint(f"{agent.log_prefix}   💡 Try /new to start a fresh conversation, or /compress to retry compression.", force=True)
+                        logger.error(f"{agent.log_prefix}Context compression failed after {max_compression_attempts} attempts.")
+                        agent._persist_session(messages, conversation_history)
+                        return {
+                            "messages": messages,
+                            "completed": False,
+                            "api_calls": api_call_count,
+                            "error": f"Context length exceeded: max compression attempts ({max_compression_attempts}) reached.",
+                            "partial": True,
+                            "failed": True,
+                            "compression_exhausted": True,
+                        }
+                    _retry.restart_with_compressed_messages = True
+                    break
+
                 if is_context_length_error:
                     compressor = agent.context_compressor
                     old_ctx = compressor.context_length
@@ -3095,46 +3152,11 @@ def run_conversation(
                     # ── Distinguish two very different errors ───────────
                     # 1. "Prompt too long": the INPUT exceeds the context window.
                     #    Fix: reduce context_length + compress history.
-                    # 2. "max_tokens too large": input is fine, but
-                    #    input_tokens + requested max_tokens > context_window.
-                    #    Fix: reduce max_tokens (the OUTPUT cap) for this call.
-                    #    Do NOT shrink context_length — the window is unchanged.
-                    #
+                    # 2. "max_tokens too large" (input + requested output >
+                    #    window): handled in the output-cap block above — it
+                    #    caps max_tokens and retries without touching history.
                     # Note: max_tokens = output token cap (one response).
                     #       context_length = total window (input + output combined).
-                    available_out = parse_available_output_tokens_from_error(error_msg)
-                    if available_out is not None:
-                        # Error is purely about the output cap being too large.
-                        # Cap output to the available space and retry without
-                        # touching context_length or triggering compression.
-                        safe_out = max(1, available_out - 64)  # small safety margin
-                        agent._ephemeral_max_output_tokens = safe_out
-                        agent._buffer_vprint(
-                            f"⚠️  Output cap too large for current prompt — "
-                            f"retrying with max_tokens={safe_out:,} "
-                            f"(available_tokens={available_out:,}; context_length unchanged at {old_ctx:,})"
-                        )
-                        # Still count against compression_attempts so we don't
-                        # loop forever if the error keeps recurring.
-                        compression_attempts += 1
-                        if compression_attempts > max_compression_attempts:
-                            agent._flush_status_buffer()
-                            agent._vprint(f"{agent.log_prefix}❌ Max compression attempts ({max_compression_attempts}) reached.", force=True)
-                            agent._vprint(f"{agent.log_prefix}   💡 Try /new to start a fresh conversation, or /compress to retry compression.", force=True)
-                            logger.error(f"{agent.log_prefix}Context compression failed after {max_compression_attempts} attempts.")
-                            agent._persist_session(messages, conversation_history)
-                            return {
-                                "messages": messages,
-                                "completed": False,
-                                "api_calls": api_call_count,
-                                "error": f"Context length exceeded: max compression attempts ({max_compression_attempts}) reached.",
-                                "partial": True,
-                                "failed": True,
-                                "compression_exhausted": True,
-                            }
-                        _retry.restart_with_compressed_messages = True
-                        break
-
                     # Error is about the INPUT being too large.  Only reduce
                     # context_length when the provider explicitly reports the
                     # real lower limit.  If the provider only says "input

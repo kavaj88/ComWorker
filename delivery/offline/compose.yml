@@ -2,10 +2,10 @@ name: comworker-offline
 
 services:
   skills-init:
-    image: comworker-hermes-agent:${COMWORKER_VERSION:-__COMWORKER_VERSION__}
+    image: comworker-hermes-agent:__COMWORKER_VERSION__
     pull_policy: never
     entrypoint: ["/bin/sh", "-c"]
-    command: ["set -eu; cp -a /opt/hermes/skills/. /skills/"]
+    command: ["set -eu; rm -rf /skills/.next; mkdir -p /skills/.next; cp -a /opt/hermes/skills/. /skills/.next/; find /skills -mindepth 1 -maxdepth 1 ! -name .next -exec rm -rf -- {} +; cp -a /skills/.next/. /skills/; rm -rf /skills/.next"]
     volumes:
       - builtin-skills:/skills
     restart: "no"
@@ -29,27 +29,30 @@ services:
       retries: 20
 
   gateway:
-    image: comworker-gateway:${COMWORKER_VERSION:-__COMWORKER_VERSION__}
+    image: comworker-gateway:__COMWORKER_VERSION__
     pull_policy: never
     secrets:
       - jwt_secret
       - model_keys_master_key
+      - hermes_api_key
     environment:
       PLATFORM_DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-comworker}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-comworker_platform}
       PLATFORM_JWT_SECRET_FILE: /run/secrets/jwt_secret
       PLATFORM_MODEL_KEYS_MASTER_KEY_FILE: /run/secrets/model_keys_master_key
       PLATFORM_ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
       PLATFORM_ADMIN_PASSWORD: ${ADMIN_PASSWORD:?ADMIN_PASSWORD is required}
-      PLATFORM_HERMES_IMAGE: comworker-hermes-agent:${COMWORKER_VERSION:-__COMWORKER_VERSION__}
+      PLATFORM_HERMES_IMAGE: comworker-hermes-agent:__COMWORKER_VERSION__
       PLATFORM_DEDICATED_RUNTIME_BACKEND: hermes
-      PLATFORM_CONTAINER_NETWORK: comworker-internal
+      PLATFORM_CONTAINER_NETWORK: comworker-offline-internal
       PLATFORM_SHARED_COMWORKER_ENABLED: "false"
+      PLATFORM_USER_CONTAINER_PUBLISH_PORTS: "false"
+      PLATFORM_USER_CONTAINER_BIND_IP: "127.0.0.1"
       PLATFORM_CONTAINER_TZ: ${CONTAINER_TZ:-Asia/Shanghai}
       PLATFORM_CONTAINER_MEMORY_LIMIT: ${CONTAINER_MEMORY_LIMIT:-2g}
       PLATFORM_CONTAINER_SHM_SIZE: ${CONTAINER_SHM_SIZE:-1g}
       PLATFORM_SKILLS_DIR: /app/platform_skills
       BUILTIN_SKILLS_DIR: /app/hermes_skills
-      BUILTIN_SKILLS_VOLUME: comworker-builtin-skills
+      BUILTIN_SKILLS_VOLUME: comworker-offline-builtin-skills
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - platform-data:/data
@@ -74,7 +77,7 @@ services:
       retries: 30
 
   manage:
-    image: comworker-manage:${COMWORKER_VERSION:-__COMWORKER_VERSION__}
+    image: comworker-manage:__COMWORKER_VERSION__
     pull_policy: never
     environment:
       API_URL: http://gateway:8080
@@ -93,7 +96,7 @@ services:
       retries: 30
 
   client:
-    image: comworker-cca-front:${COMWORKER_VERSION:-__COMWORKER_VERSION__}
+    image: comworker-cca-front:__COMWORKER_VERSION__
     pull_policy: never
     ports:
       - "${COMWORKER_CLIENT_PORT:-3000}:3000"
@@ -111,22 +114,24 @@ services:
 
 networks:
   internal:
-    name: comworker-internal
+    name: comworker-offline-internal
   external:
-    name: comworker-external
+    name: comworker-offline-external
 
 volumes:
   postgres-data:
-    name: comworker-postgres-data
+    name: comworker-offline-postgres-data
   platform-data:
-    name: comworker-platform-data
+    name: comworker-offline-platform-data
   platform-skills:
-    name: comworker-platform-skills
+    name: comworker-offline-platform-skills
   builtin-skills:
-    name: comworker-builtin-skills
+    name: comworker-offline-builtin-skills
 
 secrets:
   jwt_secret:
     file: ./secrets/jwt_secret
   model_keys_master_key:
     file: ./secrets/model_keys_master_key
+  hermes_api_key:
+    file: ./secrets/hermes_api_key

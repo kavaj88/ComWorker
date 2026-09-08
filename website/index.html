@@ -1,0 +1,360 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta
+      name="description"
+      content="ComWorker 企业 AI 工作空间，帮助企业统一管理账号、模型、知识、能力、成本与审计，让 AI 真正成为组织生产力。"
+    />
+    <meta name="theme-color" content="#0b2538" />
+    <title>ComWorker｜企业 AI 工作空间</title>
+    <script>document.documentElement.classList.add('js')</script>
+    <link rel="icon" href="assets/favicon.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="styles.css" />
+    <script src="script.js" defer></script>
+  </head>
+  <body>
+    <a class="skip-link" href="#main">跳到主要内容</a>
+
+    <header class="site-header" data-header>
+      <div class="nav-shell">
+        <a class="brand" href="#home" aria-label="ComWorker 首页">
+          <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i></span>
+          <span>
+            <strong>ComWorker</strong>
+            <small>企业 AI 工作空间</small>
+          </span>
+        </a>
+
+        <button class="nav-toggle" type="button" aria-expanded="false" aria-controls="site-nav">
+          <span></span><span></span><span></span>
+          <b class="sr-only">打开导航</b>
+        </button>
+
+        <nav class="site-nav" id="site-nav" aria-label="主导航">
+          <a href="#pain">企业痛点</a>
+          <a href="#solution">解决方案</a>
+          <a href="#capabilities">核心能力</a>
+          <a href="#scenarios">应用场景</a>
+          <a href="#deployment">部署安全</a>
+          <a class="nav-cta" href="#contact">获取方案</a>
+        </nav>
+      </div>
+    </header>
+
+    <main id="main">
+      <section class="hero" id="home">
+        <div class="hero-grid section-shell">
+          <div class="hero-copy reveal">
+            <p class="eyebrow"><span>01</span> 面向企业的 AI 新基础设施</p>
+            <h1>让 AI 成为企业能力，<em>而不是又一个聊天工具</em></h1>
+            <p class="hero-lead">
+              ComWorker 把账号、模型、知识、技能、业务工具和运行资源放进同一套治理体系。
+              管理者看得清、管得住，员工用得顺、沉淀得下。
+            </p>
+            <div class="hero-actions">
+              <a class="button button-primary" href="#solution">了解解决方案 <span>→</span></a>
+              <a class="button button-secondary" href="#pain">先看企业痛点</a>
+            </div>
+            <div class="hero-proof" aria-label="产品价值摘要">
+              <div><strong>统一</strong><span>账号与权限</span></div>
+              <div><strong>隔离</strong><span>工作与数据</span></div>
+              <div><strong>可控</strong><span>模型与成本</span></div>
+              <div><strong>可追</strong><span>用量与审计</span></div>
+            </div>
+          </div>
+
+          <div class="hero-visual reveal" data-delay="1">
+            <div class="visual-seal">企业级<br />AI 中枢</div>
+            <div class="browser-frame">
+              <div class="browser-top">
+                <span></span><span></span><span></span>
+                <b>ComWorker Admin</b>
+                <small>安全连接</small>
+              </div>
+              <img src="assets/admin-dashboard.png" alt="ComWorker 管理端仪表盘界面" />
+            </div>
+            <div class="float-note note-governance">
+              <span class="icon-box" aria-hidden="true">控</span>
+              <div><strong>统一治理</strong><small>用户、模型、能力、资源</small></div>
+            </div>
+            <div class="float-note note-audit">
+              <span class="pulse-dot" aria-hidden="true"></span>
+              <div><strong>运行可追踪</strong><small>用量与关键操作清晰可见</small></div>
+            </div>
+          </div>
+        </div>
+        <div class="hero-ribbon" aria-hidden="true">
+          <span>MANAGE</span><i></i><span>ISOLATE</span><i></i><span>CONNECT</span><i></i><span>OPERATE</span>
+        </div>
+      </section>
+
+      <section class="pain-section" id="pain">
+        <div class="section-shell">
+          <div class="section-heading light reveal">
+            <p class="eyebrow"><span>02</span> 老板真正担心的，不是 AI 不够聪明</p>
+            <h2>工具越多，企业为什么反而更焦虑？</h2>
+            <p>当 AI 以个人工具的方式进入企业，效率提升往往伴随着新的管理盲区。</p>
+          </div>
+
+          <div class="pain-grid">
+            <article class="pain-card reveal">
+              <div class="pain-index">壹</div>
+              <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M8 7a4 4 0 1 0 0-8 4 4 0 0 0 0 8Zm8 4a3 3 0 1 0 0-6 3 3 0 0 0 0 6ZM1 20v-2a6 6 0 0 1 12 0v2m2 0v-1a5 5 0 0 0-2-4m5-1a5 5 0 0 1 5 5v1" /></svg>
+              <h3>账号各自注册</h3>
+              <p>员工自行购买、各自配置，入转离难以同步，企业无法形成统一的账号和权限边界。</p>
+              <small>风险：权限失控 · 资产流失</small>
+            </article>
+            <article class="pain-card reveal" data-delay="1">
+              <div class="pain-index">贰</div>
+              <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M4 3h13l3 3v15H4V3Zm3 5h10M7 12h10M7 16h7" /></svg>
+              <h3>知识留在个人手里</h3>
+              <p>提示词、资料和方法散落在聊天记录与个人文档中，人员一流动，经验也随之消失。</p>
+              <small>风险：重复劳动 · 经验断层</small>
+            </article>
+            <article class="pain-card reveal" data-delay="2">
+              <div class="pain-index">叁</div>
+              <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M12 2 4 5v6c0 5 3 9 8 11 5-2 8-6 8-11V5l-8-3Zm-3 9 2 2 4-4" /></svg>
+              <h3>工具权限看不见</h3>
+              <p>模型访问、业务连接器和敏感工具缺少最小权限控制，谁调用过什么难以追溯。</p>
+              <small>风险：数据越界 · 审计缺失</small>
+            </article>
+            <article class="pain-card reveal" data-delay="3">
+              <div class="pain-index">肆</div>
+              <svg aria-hidden="true" viewBox="0 0 24 24"><path d="M3 20h18M6 17V9m6 8V4m6 13v-6M4 5l5 3 5-5 6 4" /></svg>
+              <h3>投入成本算不清</h3>
+              <p>不同员工、模型和供应商的 Token 消耗无法汇总，预算只能靠猜，优化也没有依据。</p>
+              <small>风险：重复采购 · 成本失焦</small>
+            </article>
+          </div>
+
+          <div class="pain-conclusion reveal">
+            <strong>企业需要的不是更多 AI 入口，</strong>
+            <span>而是一套把人、知识、工具、模型和成本组织起来的工作平台。</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="solution-section" id="solution">
+        <div class="section-shell">
+          <div class="section-heading reveal">
+            <p class="eyebrow"><span>03</span> ComWorker 的回答</p>
+            <h2>一个平台，打通“企业怎么管”与“员工怎么用”</h2>
+            <p>管理端定义边界，客户端释放生产力，平台在中间完成身份、能力、运行和用量路由。</p>
+          </div>
+
+          <div class="solution-map reveal">
+            <div class="solution-side management-side">
+              <span class="side-label">管理端</span>
+              <h3>企业 AI 驾驶舱</h3>
+              <ul>
+                <li><b>统一账号</b>：创建、导入、启停与岗位配置</li>
+                <li><b>统一能力</b>：模型、技能、专家与连接器分发</li>
+                <li><b>统一运营</b>：容器、用量、配额与审计追踪</li>
+              </ul>
+            </div>
+            <div class="solution-core" aria-label="平台治理核心">
+              <div class="core-orbit orbit-one"></div>
+              <div class="core-orbit orbit-two"></div>
+              <div class="core-mark"><b>CW</b><span>治理中枢</span></div>
+              <small>身份校验 · 能力路由 · 密钥注入 · 用量记录</small>
+            </div>
+            <div class="solution-side workspace-side">
+              <span class="side-label">客户端</span>
+              <h3>员工专属 AI 工作台</h3>
+              <ul>
+                <li><b>目标驱动</b>：围绕业务任务发起多专家对话</li>
+                <li><b>知识增强</b>：调用企业资料与岗位上下文</li>
+                <li><b>工具协同</b>：连接系统并安排自动化任务</li>
+              </ul>
+            </div>
+          </div>
+
+          <div class="product-showcase reveal">
+            <div class="showcase-head">
+              <div>
+                <span>真实产品界面</span>
+                <h3>复杂留给平台，简单交给使用者</h3>
+              </div>
+              <div class="view-tabs" role="tablist" aria-label="产品界面切换">
+                <button class="view-tab is-active" type="button" role="tab" aria-selected="true" data-view="admin">管理端</button>
+                <button class="view-tab" type="button" role="tab" aria-selected="false" data-view="client">客户端</button>
+              </div>
+            </div>
+            <div class="showcase-stage">
+              <div class="view-panel is-active" data-panel="admin" role="tabpanel">
+                <img src="assets/admin-users.png" alt="ComWorker 管理端用户与岗位能力配置界面" />
+                <div class="panel-caption"><b>用户全生命周期管理</b><span>账号、角色、配额、运行模式与能力包一次配置</span></div>
+              </div>
+              <div class="view-panel" data-panel="client" role="tabpanel" hidden>
+                <img src="assets/client-workspace.png" alt="ComWorker 客户端个人 AI 工作台界面" />
+                <div class="panel-caption"><b>独立工作空间</b><span>对话、知识、技能、连接器、专家与自动化统一入口</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="capability-section" id="capabilities">
+        <div class="section-shell">
+          <div class="section-heading split reveal">
+            <div>
+              <p class="eyebrow"><span>04</span> 从“能聊天”到“能干活”</p>
+              <h2>企业能力可以沉淀，岗位经验可以复用</h2>
+            </div>
+            <p>不是把所有工具都开放给所有人，而是让每个岗位在授权范围内获得恰到好处的 AI 能力。</p>
+          </div>
+
+          <div class="capability-list">
+            <article class="capability-item reveal">
+              <span class="cap-no">01</span><div class="cap-icon">模</div>
+              <div><h3>模型统一治理</h3><p>集中维护供应商、协议、密钥、默认模型与用户可见范围，避免密钥散落和配置偏差。</p></div>
+              <small>成本有口径</small>
+            </article>
+            <article class="capability-item reveal">
+              <span class="cap-no">02</span><div class="cap-icon">知</div>
+              <div><h3>企业知识库</h3><p>把制度、产品、项目和客户资料沉淀为长期知识，在对话和任务中按需召回。</p></div>
+              <small>知识有沉淀</small>
+            </article>
+            <article class="capability-item reveal">
+              <span class="cap-no">03</span><div class="cap-icon">专</div>
+              <div><h3>岗位专家</h3><p>把销售、研发、HR、运营等岗位方法固化成可分发的专家角色，让经验随组织复制。</p></div>
+              <small>能力可复用</small>
+            </article>
+            <article class="capability-item reveal">
+              <span class="cap-no">04</span><div class="cap-icon">连</div>
+              <div><h3>连接器与工具</h3><p>连接 CRM、文档、研发平台和内部 API，以最小权限将 AI 接入现有业务流程。</p></div>
+              <small>业务能打通</small>
+            </article>
+            <article class="capability-item reveal">
+              <span class="cap-no">05</span><div class="cap-icon">自</div>
+              <div><h3>定时与自动执行</h3><p>按固定间隔、Cron 或单次时间自动运行任务，让日报、巡检和跟进稳定发生。</p></div>
+              <small>任务会抵达</small>
+            </article>
+            <article class="capability-item reveal">
+              <span class="cap-no">06</span><div class="cap-icon">审</div>
+              <div><h3>用量与审计</h3><p>记录 Token、关键操作、容器状态和 Request-ID，为预算分析和责任追踪提供依据。</p></div>
+              <small>过程可追踪</small>
+            </article>
+          </div>
+
+          <div class="automation-showcase reveal">
+            <div class="automation-copy">
+              <p class="eyebrow"><span>05</span> 从等人提问，到主动执行</p>
+              <h2>重复工作，交给可靠的自动化流程</h2>
+              <p>任务执行结果自动回到会话，员工不必守着工具，也不会错过关键节点。</p>
+              <ul class="check-list">
+                <li>日报整理与经营数据汇总</li>
+                <li>运营巡检与异常提醒</li>
+                <li>销售客户周期跟进</li>
+              </ul>
+            </div>
+            <div class="automation-image">
+              <img src="assets/client-cron.png" alt="ComWorker 客户端定时任务与自动执行界面" />
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="scenario-section" id="scenarios">
+        <div class="section-shell">
+          <div class="section-heading light reveal">
+            <p class="eyebrow"><span>06</span> 从一个高频场景开始</p>
+            <h2>老板看见的不只是“功能”，而是可落地的经营价值</h2>
+          </div>
+          <div class="scenario-grid">
+            <article class="scenario-card reveal">
+              <span>销售增长</span><h3>产品知识 + CRM + 自动跟进</h3>
+              <p>统一话术，快速了解客户背景，生成沟通建议并持续跟进，让优秀经验成为团队能力。</p>
+              <strong>减少新人培养成本 →</strong>
+            </article>
+            <article class="scenario-card reveal" data-delay="1">
+              <span>研发协作</span><h3>代码知识 + 工具链 + 编程专家</h3>
+              <p>辅助定位问题、梳理方案、形成文档，在提升效率的同时保留过程与结果。</p>
+              <strong>减少信息断层 →</strong>
+            </article>
+            <article class="scenario-card reveal" data-delay="2">
+              <span>人力资源</span><h3>制度知识 + HR 专家 + 消息渠道</h3>
+              <p>让员工获得统一、准确的制度解读，把重复咨询转化为稳定的自助服务。</p>
+              <strong>减少重复答疑 →</strong>
+            </article>
+            <article class="scenario-card reveal" data-delay="3">
+              <span>运营管理</span><h3>业务连接器 + 定时任务 + 审计</h3>
+              <p>周期采集状态并自动输出报告，管理者不仅看到结果，也能理解系统如何运转。</p>
+              <strong>减少人工巡检 →</strong>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section class="deployment-section" id="deployment">
+        <div class="section-shell deployment-grid">
+          <div class="deployment-copy reveal">
+            <p class="eyebrow"><span>07</span> 安全不是附加项</p>
+            <h2>数据有边界，运行有隔离，部署有选择</h2>
+            <p>
+              ComWorker 支持私有化部署，并根据岗位风险和任务负载提供 Dedicated 与 Shared 两类运行模式。
+              企业可以在安全、性能和成本之间做清晰选择。
+            </p>
+            <div class="trust-list">
+              <div><span>✓</span><b>JWT 身份与角色控制</b><small>管理员与员工边界清晰</small></div>
+              <div><span>✓</span><b>密钥集中保护</b><small>模型密钥与平台配置不写入业务代码</small></div>
+              <div><span>✓</span><b>关键操作审计</b><small>用户、操作与 Request-ID 可追踪</small></div>
+              <div><span>✓</span><b>本地数据持久化</b><small>数据库与个人工作区纳入企业备份</small></div>
+            </div>
+          </div>
+
+          <div class="runtime-board reveal" data-delay="1">
+            <div class="runtime-head"><span>运行模式选择</span><small>按岗位风险与负载分层</small></div>
+            <article class="runtime-card dedicated">
+              <div><span class="runtime-dot"></span><b>Dedicated</b><small>专属运行</small></div>
+              <h3>独立容器与工作空间</h3>
+              <p>适合核心研发、数据分析、敏感岗位和长期任务。</p>
+              <ul><li>更直观的资源隔离</li><li>独立生命周期管理</li><li>适合高敏感数据</li></ul>
+            </article>
+            <article class="runtime-card shared">
+              <div><span class="runtime-dot"></span><b>Shared</b><small>共享运行</small></div>
+              <h3>共享运行时与逻辑隔离</h3>
+              <p>适合通用办公、轻量问答和规模化普及。</p>
+              <ul><li>更高的资源利用率</li><li>按用户映射工作区</li><li>适合成本敏感场景</li></ul>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section class="contact-section" id="contact">
+        <div class="section-shell contact-card reveal">
+          <div class="contact-mark" aria-hidden="true">CW</div>
+          <div>
+            <p class="eyebrow"><span>08</span> 从一支团队、一个场景开始</p>
+            <h2>关注公众号，免费获取 ComWorker 安装包</h2>
+            <p>从统一账号、企业知识和一个高频任务开始试点，让成熟的 AI 能力逐步复制到更多团队。</p>
+          </div>
+          <div class="contact-qr">
+            <div class="qr-frame">
+              <img src="assets/qrcode.jpg" alt="击水飞舟公众号二维码" />
+            </div>
+            <div class="qr-copy">
+              <span>微信公众号</span>
+              <strong>击水飞舟</strong>
+              <p>微信扫码关注<br />回复 <code>comworker</code><br /><b>免费获取安装包</b></p>
+              <a class="text-link" href="#home">返回顶部 ↑</a>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="site-footer">
+      <div class="section-shell footer-grid">
+        <a class="brand footer-brand" href="#home">
+          <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i></span>
+          <span><strong>ComWorker</strong><small>企业 AI 工作空间</small></span>
+        </a>
+        <p>统一治理 · 独立工作空间 · 可扩展智能能力</p>
+        <small>© 2026 ComWorker. 基于当前产品能力制作。</small>
+      </div>
+    </footer>
+  </body>
+</html>

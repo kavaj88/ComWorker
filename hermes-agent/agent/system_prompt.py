@@ -46,6 +46,45 @@ from agent.prompt_builder import (
 from agent.runtime_cwd import resolve_context_cwd
 
 
+# 语言偏好引导：默认用中文进行思考（reasoning）与回答，避免 GLM/DeepSeek 等
+# 偏好英文 thinking 的模型在思考面板出现中英混杂。此为 best-effort 引导——
+# reasoning 语言最终由模型决定，但明确指令可显著改善。仅对支持 reasoning 的
+# 模型注入，避免对无思考能力的模型产生无意义约束。
+REASONING_LANGUAGE_GUIDANCE = (
+    "默认使用中文进行思考（reasoning）和回复。除非用户明确要求使用其他语言，"
+    "否则推理过程与最终回答都使用中文表达。"
+)
+
+
+# 强制引导模型主动用 skill_view 加载工作流技能。观察到的失败模式：当用户请求
+# "写文章 / 整理报告 / 总结文档 / 按 XX 工作流处理" 时，模型跳过 skill_view 转而
+# 直接用 search_files/read_file/grep 等通用工具拼接一份本地答案，导致：
+#   * skill 工作流没被触发（spec/模板/输出契约丢失）
+#   * 产物用文本写入错误目录（如 knowledge-base/ 而非 knowledge/）
+#   * 前端无法渲染为可点击文件卡片（结构化 tool_use 缺失）
+SKILL_WORKFLOW_GUIDANCE = (
+    "涉及『生成/写作/整理/总结/报告/教程』类需要结构化产物的工作时，先用 "
+    "skill_view(name=<skill-name>) 加载相应的工作流 skill（看 skill 列表选择匹配的）。"
+    "skill 内部通常会用 write_file 把产物写到 knowledge/<name>.md 等约定路径，"
+    "产物路径会自动以结构化 tool_use 形式返回给前端渲染为卡片。"
+    "不要用 search_files/read_file 自己拼凑一份——这会跳过 skill 工作流并产"
+    "生不可点击的文本产物。只有当用户明确要求『不要用 skill』或上下文明确"
+    "无可用 skill 时，才退化为通用 read/write 路径。"
+)
+
+
+# 知识库根目录约定。平台（gateway）的知识库索引固定扫描工作区下的 knowledge/
+# 目录；写到 knowledge-base/ 等其他名字的文件虽然磁盘上存在，但不会出现在
+# 用户的「知识库」菜单里，等于白写。此处显式钉死路径，避免模型自由发挥。
+KNOWLEDGE_ROOT_GUIDANCE = (
+    "保存/写入知识库文档时，路径必须写成 knowledge/<文件名>.md（相对于当前工作区"
+    "根目录），例如 knowledge/AI发展文章.md。**不要**使用 knowledge-base/、kb/、"
+    "docs/ 等任何其他目录名——平台只索引 knowledge/ 目录，写到别处的文件不会"
+    "出现在用户的「知识库」菜单里。如果用户要求『保存到知识库』，就写到 "
+    "knowledge/ 下；如果要求保存到工作区其他位置，才用其他路径。"
+)
+
+
 def _ra():
     """Lazy reference to the ``run_agent`` module.
 
@@ -184,6 +223,11 @@ def build_system_prompt_parts(agent: Any, system_message: Optional[str] = None) 
     if getattr(agent, "_parallel_tool_call_guidance", True) and agent.valid_tool_names:
         stable_parts.append(PARALLEL_TOOL_CALL_GUIDANCE)
 
+    # 语言偏好：默认中文思考与回答（用户要求统一中文，避免思考面板中英混杂）。
+    # 仅对支持 reasoning 的模型注入，避免约束无思考能力的模型。
+    if getattr(agent, "_supports_reasoning_extra_body", lambda: False)():
+        stable_parts.append(REASONING_LANGUAGE_GUIDANCE)
+
     # Tool-aware behavioral guidance: only inject when the tools are loaded
     tool_guidance = []
     if "memory" in agent.valid_tool_names:
@@ -288,6 +332,14 @@ def build_system_prompt_parts(agent: Any, system_message: Optional[str] = None) 
         skills_prompt = ""
     if skills_prompt:
         stable_parts.append(skills_prompt)
+        # skill_view 工作流引导：强制优先用 skill_view 加载工作流，避免模型
+        # 退化为通用 read/write 拼凑产物（产物不可点击）。
+        stable_parts.append(SKILL_WORKFLOW_GUIDANCE)
+
+    # 知识库写入路径约定：平台只索引工作区下的 knowledge/ 目录，写到
+    # knowledge-base/ 等其他名字的文件不会出现在「知识库」菜单里。
+    if agent.valid_tool_names:
+        stable_parts.append(KNOWLEDGE_ROOT_GUIDANCE)
 
     # Alibaba Coding Plan API always returns "glm-4.7" as model name regardless
     # of the requested model. Inject explicit model identity into the system prompt

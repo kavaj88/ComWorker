@@ -5,6 +5,9 @@ description_zh: 企业微信 CLI 套件，覆盖文档/消息/日程/会议/待�
 description_en: 'WeCom CLI suite covering docs, messages, calendars, meetings, todos, and contacts. For organizations with 10+ members: create and read docs, smart sheets, and smart docs. For individuals and small teams (10 or fewer): read/write docs, send/receive direct and group messages, manage calendars, meetings, and todos, and look up contacts.'
 version: 1.0.0
 allowed-tools: Bash, Read
+metadata:
+  comworker:
+    requires_connector: wecom
 ---
 
 # 企业微信套件 (WeCom Unified)

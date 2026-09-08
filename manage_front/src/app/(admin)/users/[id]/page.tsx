@@ -23,15 +23,19 @@ import {
   updateUser, resetPassword, getUserConfiguredModels, type ConfiguredModels,
   type CatalogSkill, type Agent, type Connector,
   applyUserCapabilities,
-  getAdminUserSkills, adminInstallManagedSkill, adminUninstallUserSkill,
+  getAdminUserSkills, adminInstallManagedSkill, adminUninstallUserSkill, adminBatchUninstallSkills,
   listAgents, adminAssignAgentToUser, adminUnassignAgentFromUser,
   getAdminConnectors, adminInstallConnectorForUser, adminUninstallConnectorForUser,
   getAdminCatalogSkills,
   getUserUsage,
+  getAdminUserCronJobs, adminCreateCronJob, adminUpdateCronJob, adminRunCronJob,
+  adminToggleCronJob, adminDeleteCronJob, type AdminCronJobInput,
   setUserProviderDisabled,
   getUserKnowledge, readUserKnowledge, searchUserKnowledge, getUserKnowledgeGraph,
   writeUserKnowledge, mkdirUserKnowledge, deleteUserKnowledge, uploadUserKnowledge, downloadUserKnowledge,
+  getUserModels,
 } from "@/lib/api";
+import type { UserModelItem } from "@/types";
 import { UserCapabilitiesDialog } from "@/components/user-capabilities-dialog";
 import { UserModelsDialog } from "@/components/user-models-dialog";
 import { SearchableSelect } from "@/components/ui/searchable-select";
@@ -39,12 +43,12 @@ import { ResizableModal } from "@/components/ui/resizable-modal";
 import {
   BookOpen, Search, FilePlus, FolderPlus, Save, Trash2, Download, Upload,
   GitBranch, Pencil, RefreshCw, X, Loader2, Folder, FileText, Link as LinkIcon,
-  Bot, Package, Check, AlertTriangle, Plug,
+  Bot, Package, Check, AlertTriangle, Plug, Play, Pause, Plus, Clock, ExternalLink,
 } from "lucide-react";
 import type {
   DataFootprint, DataIntegrity, UserConnectorItem, UserAgentItem, UserContainerDetail,
   UserSummary, KnowledgeListResult, KnowledgeReadResult, KnowledgeSearchResult,
-  KnowledgeGraphResult, KnowledgePageMeta, KnowledgeDirectoryMeta,
+  KnowledgeGraphResult, KnowledgePageMeta, KnowledgeDirectoryMeta, AdminCronJob,
 } from "@/types";
 
 const TABS = [
@@ -53,6 +57,7 @@ const TABS = [
   { key: "agents", label: "专家" },
   { key: "connectors", label: "连接器" },
   { key: "knowledge", label: "知识库" },
+  { key: "cron", label: "定时任务" },
   { key: "models", label: "模型" },
   { key: "container", label: "容器" },
 ] as const;
@@ -95,6 +100,7 @@ export default function UserDetailPage() {
       {tab === "skills" && <SkillsTab userId={userId} />}
       {tab === "agents" && <AgentsTab userId={userId} />}
       {tab === "connectors" && <ConnectorsTab userId={userId} />}
+      {tab === "cron" && <CronTab userId={userId} />}
       {tab === "knowledge" && <KnowledgeTab userId={userId} />}
       {tab === "models" && <ModelsTab dialogUser={dialogUser} />}
       {tab === "container" && <ContainerTab userId={userId} />}
@@ -305,6 +311,7 @@ function SkillsTab({ userId }: { userId: string }) {
   const [catalogMap, setCatalogMap] = useState<Record<string, CatalogSkill>>({});
   const [loading, setLoading] = useState(true);
   const [pick, setPick] = useState("");
+  const [selected, setSelected] = useState<Set<string>>(new Set());
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -339,11 +346,37 @@ function SkillsTab({ userId }: { userId: string }) {
     } catch (e) { toast.error("卸载失败: " + (e as Error).message); }
   }
 
+  function toggleSelect(name: string) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(name)) next.delete(name); else next.add(name);
+      return next;
+    });
+  }
+  async function batchUninstall() {
+    if (selected.size === 0) return;
+    const names = Array.from(selected);
+    try {
+      await adminBatchUninstallSkills(userId, names);
+      toast.success(`已批量卸载 ${names.length} 个技能`);
+      setSelected(new Set());
+      load();
+    } catch (e) { toast.error("批量卸载失败: " + (e as Error).message); }
+  }
+
   const renderSkillCard = (name: string, managed: boolean) => {
     const meta = catalogMap[name];
+    const checked = selected.has(name);
     return (
-      <div key={name} className="flex flex-col gap-3 rounded-lg border p-3">
+      <div key={name} className={"flex flex-col gap-3 rounded-lg border p-3 " + (checked ? "border-blue-400 bg-blue-50" : "")}>
         <div className="flex items-start gap-3">
+          <input
+            type="checkbox"
+            className="mt-1 h-4 w-4 shrink-0 accent-blue-600"
+            checked={checked}
+            onChange={() => toggleSelect(name)}
+            aria-label={`选择 ${meta?.title || name}`}
+          />
           <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-purple-100 text-purple-600">
             <Package size={18} />
           </span>
@@ -380,6 +413,13 @@ function SkillsTab({ userId }: { userId: string }) {
               />
               <Button onClick={install} disabled={!pick}>安装</Button>
             </div>
+            {selected.size > 0 && (
+              <div className="flex items-center gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2">
+                <span className="text-sm text-blue-700">已选 {selected.size} 个技能</span>
+                <Button size="sm" variant="destructive" onClick={batchUninstall}>批量卸载</Button>
+                <Button size="sm" variant="outline" onClick={() => setSelected(new Set())}>取消选择</Button>
+              </div>
+            )}
             <div className="space-y-4">
               <div>
                 <h4 className="text-sm font-medium mb-2">自装技能（用户可卸载）</h4>
@@ -1080,6 +1120,9 @@ function ModelsTab({ dialogUser }: { dialogUser: UserSummary }) {
   const [cfg, setCfg] = useState<ConfiguredModels | null>(null);
   const [cfgLoading, setCfgLoading] = useState(true);
   const [cfgError, setCfgError] = useState<string | null>(null);
+  const [adminProviders, setAdminProviders] = useState<UserModelItem[]>([]);
+  const [adminDefault, setAdminDefault] = useState<string>("");
+  const [adminLoading, setAdminLoading] = useState(true);
 
   const loadCfg = useCallback(async () => {
     setCfgLoading(true);
@@ -1093,7 +1136,21 @@ function ModelsTab({ dialogUser }: { dialogUser: UserSummary }) {
     }
   }, [dialogUser.id]);
 
+  const loadAdmin = useCallback(async () => {
+    setAdminLoading(true);
+    try {
+      const data = await getUserModels(dialogUser.id);
+      setAdminProviders(data.providers || []);
+      setAdminDefault(data.defaultModel || "");
+    } catch {
+      setAdminProviders([]);
+    } finally {
+      setAdminLoading(false);
+    }
+  }, [dialogUser.id]);
+
   useEffect(() => { loadCfg(); }, [loadCfg]);
+  useEffect(() => { loadAdmin(); }, [loadAdmin]);
 
   async function toggleDisable(name: string, disabled: boolean) {
     try {
@@ -1103,13 +1160,15 @@ function ModelsTab({ dialogUser }: { dialogUser: UserSummary }) {
     } catch (e) { toast.error("操作失败: " + (e as Error).message); }
   }
 
+  const userProviders = (cfg?.providers || []).filter((p) => !p.system);
+
   return (
     <div className="space-y-6">
       <Card>
         <CardHeader>
+          <CardTitle>用户实际配置的模型</CardTitle>
           <CardDescription>
             来自该用户个人容器 <code>config.yaml</code>（即他在客户端「AI 模型」页添加的提供商 / 密钥 / 模型）。
-            这与下方管理员设置的「平台可见性与默认」是<b>两层独立数据</b>：此处展示用户自己配了什么；密钥已掩码，仅显示是否已配置。
             可在此直接禁用某个提供商（写入 DB，容器重建后持久生效）。
           </CardDescription>
         </CardHeader>
@@ -1122,29 +1181,22 @@ function ModelsTab({ dialogUser }: { dialogUser: UserSummary }) {
             <div className="space-y-3">
               <div className="text-sm">
                 默认模型：
-                <span className="font-medium">{cfg?.defaultModel || "（未设置，跟随平台默认）"}</span>
+                <span className="font-medium">{cfg?.defaultModel || "（未设置）"}</span>
               </div>
-              {!cfg || cfg.providers.length === 0 ? (
+              {userProviders.length === 0 ? (
                 <p className="text-xs text-gray-400">该用户尚未在客户端配置任何模型提供商。</p>
               ) : (
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                  {cfg.providers.map((p) => (
+                  {userProviders.map((p) => (
                     <div key={p.name} className={"flex flex-col rounded-lg border p-3 " + (p.disabled ? "opacity-60 bg-gray-50" : "")}>
                       <div className="flex items-center justify-between gap-2">
                         <span className={"font-medium truncate " + (p.disabled ? "line-through" : "")}>{p.name}</span>
-                        <div className="flex items-center gap-1 shrink-0">
-                          {p.disabled && <Badge variant="destructive" className="shrink-0">已禁用</Badge>}
-                          {p.system ? (
-                            <Badge variant="secondary" className="shrink-0">平台默认</Badge>
-                          ) : (
-                            <Badge
-                              variant={p.hasApiKey ? "default" : "outline"}
-                              className={"shrink-0 " + (p.hasApiKey ? "" : "text-amber-600")}
-                            >
-                              {p.hasApiKey ? "已配密钥" : "未配密钥"}
-                            </Badge>
-                          )}
-                        </div>
+                        <Badge
+                          variant={p.hasApiKey ? "default" : "outline"}
+                          className={"shrink-0 " + (p.hasApiKey ? "" : "text-amber-600")}
+                        >
+                          {p.hasApiKey ? "已配密钥" : "未配密钥"}
+                        </Badge>
                       </div>
                       <div className="text-xs text-gray-500 mt-1 break-all">
                         {p.api || "openai-completions"}{p.baseUrl ? ` · ${p.baseUrl}` : ""}
@@ -1156,18 +1208,16 @@ function ModelsTab({ dialogUser }: { dialogUser: UserSummary }) {
                           </Badge>
                         ))}
                       </div>
-                      {!p.system && (
-                        <div className="mt-2 flex justify-end">
-                          <Button
-                            size="sm"
-                            variant={p.disabled ? "outline" : "ghost"}
-                            className={p.disabled ? "" : "text-red-500 px-2"}
-                            onClick={() => toggleDisable(p.name, !p.disabled)}
-                          >
-                            {p.disabled ? "启用" : "禁用"}
-                          </Button>
-                        </div>
-                      )}
+                      <div className="mt-2 flex justify-end">
+                        <Button
+                          size="sm"
+                          variant={p.disabled ? "outline" : "ghost"}
+                          className={p.disabled ? "" : "text-red-500 px-2"}
+                          onClick={() => toggleDisable(p.name, !p.disabled)}
+                        >
+                          {p.disabled ? "启用" : "禁用"}
+                        </Button>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -1180,11 +1230,44 @@ function ModelsTab({ dialogUser }: { dialogUser: UserSummary }) {
       <Card>
         <CardHeader>
           <CardTitle>模型权限（平台层）</CardTitle>
-          <CardDescription>管理该用户可见的模型供应商与默认模型（管理员设置，作用于所有用户 / 指定用户）。</CardDescription>
+          <CardDescription>
+            管理该用户可见的模型供应商与默认模型（管理员设置，作用于所有用户 / 指定用户）。
+            当前默认模型：<span className="font-medium">{adminDefault || "（跟随平台默认）"}</span>
+          </CardDescription>
         </CardHeader>
         <CardContent>
-          <Button onClick={() => setOpen(true)}>配置模型可见性与默认</Button>
-          <UserModelsDialog user={open ? dialogUser : null} onClose={() => setOpen(false)} />
+          {adminLoading ? (
+            <p className="text-gray-500">加载中…</p>
+          ) : adminProviders.length === 0 ? (
+            <p className="text-xs text-gray-400">没有平台层供应商可显示。</p>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mb-3">
+              {adminProviders.map((p) => (
+                <div key={p.id} className={"flex flex-col rounded-lg border p-3 " + (!p.allowed ? "opacity-60 bg-gray-50" : "")}>
+                  <div className="flex items-center justify-between gap-2">
+                    <span className={"font-medium truncate " + (!p.allowed ? "line-through" : "")}>
+                      {p.name || p.id}
+                    </span>
+                    <Badge variant={p.allowed ? "default" : "outline"} className="shrink-0">
+                      {p.allowed ? "可见" : "已禁用"}
+                    </Badge>
+                  </div>
+                  <div className="text-xs text-gray-500 mt-1 break-all">
+                    {p.api || "openai-completions"}{p.baseUrl ? ` · ${p.baseUrl}` : ""}
+                  </div>
+                  <div className="mt-2 flex flex-wrap gap-1">
+                    {p.models.filter((m) => m.enabled !== false).map((m) => (
+                      <Badge key={m.id} variant="outline" className="text-[11px]">
+                        {m.name || m.id}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+          <Button variant="outline" onClick={() => setOpen(true)}>高级：配置可见性与默认</Button>
+          <UserModelsDialog user={open ? dialogUser : null} onClose={() => { setOpen(false); loadAdmin(); }} />
         </CardContent>
       </Card>
     </div>
@@ -1364,5 +1447,190 @@ function KV({ k, v }: { k: string; v: string }) {
       <div className="text-xs text-gray-500">{k}</div>
       <div className="font-medium break-all">{v}</div>
     </div>
+  );
+}
+
+// ─── 定时任务 tab（管理端代管用户 cron） ──────────────────────────────────────
+function CronTab({ userId }: { userId: string }) {
+  const [jobs, setJobs] = useState<AdminCronJob[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [createOpen, setCreateOpen] = useState(false);
+  const [name, setName] = useState("");
+  const [message, setMessage] = useState("");
+  const [everyMinutes, setEveryMinutes] = useState<number>(60);
+  const [cronExpr, setCronExpr] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const data = await getAdminUserCronJobs(userId);
+      setJobs(data || []);
+    } catch (e) {
+      toast.error("加载定时任务失败: " + (e as Error).message);
+    } finally {
+      setLoading(false);
+    }
+  }, [userId]);
+  useEffect(() => { load(); }, [load]);
+
+  async function run(job: AdminCronJob) {
+    setBusyId(job.id);
+    try {
+      await adminRunCronJob(userId, job.id);
+      toast.success(`已触发「${job.name}」`);
+      await load();
+    } catch (e) {
+      toast.error("立即执行失败: " + (e as Error).message);
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function toggle(job: AdminCronJob) {
+    setBusyId(job.id);
+    try {
+      await adminToggleCronJob(userId, job.id, !job.enabled);
+      await load();
+    } catch (e) {
+      toast.error("切换状态失败: " + (e as Error).message);
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function remove(job: AdminCronJob) {
+    if (!window.confirm(`确认删除定时任务「${job.name}」？`)) return;
+    setBusyId(job.id);
+    try {
+      await adminDeleteCronJob(userId, job.id);
+      toast.success("已删除");
+      await load();
+    } catch (e) {
+      toast.error("删除失败: " + (e as Error).message);
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function create() {
+    if (!name.trim() || !message.trim()) { toast.error("请填写名称与任务内容"); return; }
+    setSaving(true);
+    try {
+      const params: AdminCronJobInput = {
+        name: name.trim(),
+        message: message.trim(),
+        every_seconds: cronExpr.trim() ? undefined : Math.max(1, everyMinutes) * 60,
+        cron_expr: cronExpr.trim() || undefined,
+      };
+      await adminCreateCronJob(userId, params);
+      toast.success("已创建定时任务");
+      setCreateOpen(false);
+      setName(""); setMessage(""); setCronExpr(""); setEveryMinutes(60);
+      await load();
+    } catch (e) {
+      toast.error("创建失败: " + (e as Error).message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const fmt = (ms?: number | null) => {
+    if (!ms) return "-";
+    const d = new Date(ms);
+    if (isNaN(d.getTime())) return "-";
+    return d.toLocaleString("zh-CN", { hour12: false });
+  };
+
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between gap-2">
+        <CardDescription>该用户由系统自动执行的定时任务（到达调度时间自动运行，或由管理员手动触发）。</CardDescription>
+        <Button size="sm" onClick={() => setCreateOpen(true)}><Plus size={15} className="mr-1" />新建</Button>
+      </CardHeader>
+      <CardContent>
+        {loading ? <p className="text-gray-500">加载中…</p> : jobs.length === 0 ? (
+          <p className="text-xs text-gray-400">该用户暂无定时任务</p>
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>名称 / 最近结果</TableHead>
+                <TableHead>调度</TableHead>
+                <TableHead>下次执行</TableHead>
+                <TableHead>最近执行</TableHead>
+                <TableHead>状态</TableHead>
+                <TableHead className="text-right">操作</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {jobs.map((job) => (
+                <TableRow key={job.id}>
+                  <TableCell>
+                    <div className="font-medium">{job.name}</div>
+                    {job.last_output && (
+                      <div className="mt-1 line-clamp-2 max-w-md whitespace-pre-wrap text-xs text-gray-500">{job.last_output}</div>
+                    )}
+                  </TableCell>
+                  <TableCell className="text-xs text-gray-600">{job.schedule_display || job.schedule_kind}</TableCell>
+                  <TableCell className="text-xs text-gray-600">{fmt(job.next_run_at_ms)}</TableCell>
+                  <TableCell className="text-xs text-gray-600">{fmt(job.last_run_at_ms)}</TableCell>
+                  <TableCell>
+                    {job.enabled
+                      ? <Badge className="bg-green-100 text-green-700">启用</Badge>
+                      : <Badge variant="secondary">已暂停</Badge>}
+                    {job.last_status === "error" && <Badge className="ml-1 bg-red-100 text-red-700">失败</Badge>}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <div className="flex justify-end gap-1">
+                      <Button size="sm" variant="outline" disabled={busyId === job.id} onClick={() => run(job)} title="立即执行">
+                        {busyId === job.id ? <Loader2 size={14} className="animate-spin" /> : <Play size={14} />}
+                      </Button>
+                      <Button size="sm" variant="outline" onClick={() => toggle(job)} title={job.enabled ? "暂停" : "启用"}>
+                        {job.enabled ? <Pause size={14} /> : <Play size={14} />}
+                      </Button>
+                      <Button size="sm" variant="ghost" className="px-2 text-red-500" onClick={() => remove(job)} title="删除">
+                        <Trash2 size={14} />
+                      </Button>
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )}
+      </CardContent>
+
+      <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>新建定时任务</DialogTitle></DialogHeader>
+          <div className="space-y-3">
+            <div>
+              <Label>名称</Label>
+              <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="例如：每日早报" />
+            </div>
+            <div>
+              <Label>任务内容（提示词）</Label>
+              <textarea className="w-full rounded border p-2 text-sm" rows={3} value={message} onChange={(e) => setMessage(e.target.value)} placeholder="每次执行时发送给模型的指令" />
+            </div>
+            <div className="flex gap-3">
+              <div className="flex-1">
+                <Label>间隔（分钟）</Label>
+                <Input type="number" min={1} value={everyMinutes} onChange={(e) => setEveryMinutes(Number(e.target.value) || 60)} />
+              </div>
+              <div className="flex-1">
+                <Label>cron 表达式（可选，优先于间隔）</Label>
+                <Input value={cronExpr} onChange={(e) => setCronExpr(e.target.value)} placeholder="0 9 * * *" />
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCreateOpen(false)}>取消</Button>
+            <Button onClick={create} disabled={saving}>{saving ? <Loader2 size={14} className="animate-spin" /> : "创建"}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </Card>
   );
 }

@@ -1196,7 +1196,7 @@ async def create_container(
             select(SystemFlag).where(SystemFlag.key == DEFAULT_INSTALL_FLAG)
         )
     ).scalar_one_or_none()
-    master_on = not (flag is not None and flag.value == "false")
+    master_on = flag is not None and flag.value == "true"
     override_row = (
         await db.execute(
             select(SystemFlag).where(SystemFlag.key == DEFAULT_OVERRIDE_FLAG)

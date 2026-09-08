@@ -23,6 +23,38 @@ class ProviderPreset:
     base_attr: str | None = None
 
 
+async def _provider_to_hermes_cp(db: AsyncSession, provider: ModelProviderConfig) -> dict[str, Any]:
+    """Convert an admin-managed ModelProviderConfig row to a hermes `custom_provider`
+    entry (the same shape `_frontend_to_hermes_providers` produces).
+
+    Resolves the decrypted API key, so chat requests can actually authenticate.
+    The api_mode is normalised to hermes's snake_case (``chat_completions``,
+    ``anthropic_messages``, ...).
+    """
+    api_key = get_api_key(provider) or ""
+    api_mode = provider.api_mode or provider.provider_type or ""
+    api_mode_norm = api_mode.strip().lower().replace("-", "_")
+    if api_mode_norm == "openai_completions":
+        api_mode_norm = "chat_completions"
+    models_out = []
+    for m in provider.models or []:
+        if not isinstance(m, dict):
+            continue
+        if m.get("enabled") is False:
+            continue
+        mid = str(m.get("id") or "").strip()
+        if not mid:
+            continue
+        models_out.append({"id": mid, "name": m.get("name") or mid})
+    return {
+        "name": provider.id,
+        "base_url": provider.api_base or "",
+        "api_key": api_key,
+        "api_mode": api_mode_norm,
+        "models": models_out,
+    }
+
+
 PROVIDER_PRESETS: dict[str, ProviderPreset] = {
     "deepseek": ProviderPreset(
         id="deepseek",
@@ -152,6 +184,7 @@ def serialize_provider(provider: ModelProviderConfig, *, include_secret: bool = 
         "apiKeyMasked": _masked(get_api_key(provider)),
         "scopeMode": (provider.user_scope or {}).get("mode", "all") if isinstance(provider.user_scope, dict) else "all",
         "scopeUserIds": (provider.user_scope or {}).get("user_ids", []) if isinstance(provider.user_scope, dict) else [],
+        "autoInstall": bool(getattr(provider, "auto_install_new_users", False)),
     }
     if include_secret:
         data["apiKey"] = get_api_key(provider)
@@ -237,7 +270,34 @@ async def get_model_config_payload(db: AsyncSession, *, include_secret: bool = F
 
 async def resolve_model_provider(db: AsyncSession, model: str, user_id: str | None = None) -> tuple[ModelProviderConfig, str]:
     if "/" not in model:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Model '{model}' must include provider prefix")
+        # Bare model id (e.g. "glm-5.3"). Hermes strips the "provider/" prefix
+        # when routing through its platform-gateway custom_provider, so requests
+        # arrive without the qualifier. Resolve against the providers visible to
+        # this user; ambiguity (same model id on >1 provider) requires the
+        # qualified form.
+        matches: list[ModelProviderConfig] = []
+        for provider in await list_enabled_providers(db, user_id=user_id):
+            if not get_api_key(provider):
+                continue
+            for item in provider.models or []:
+                if (
+                    isinstance(item, dict)
+                    and item.get("enabled") is not False
+                    and str(item.get("id") or "").strip() == model
+                ):
+                    matches.append(provider)
+                    break
+        if len(matches) == 1:
+            return matches[0], model
+        if len(matches) > 1:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Model '{model}' is ambiguous across providers {[p.id for p in matches]}; use 'provider/model'",
+            )
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"No provider configured for model '{model}'",
+        )
     provider_id, model_id = model.split("/", 1)
     provider = await db.get(ModelProviderConfig, provider_id)
     if provider is None or not provider.enabled or not get_api_key(provider):

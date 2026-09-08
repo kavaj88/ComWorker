@@ -42,7 +42,8 @@ cache/
 .worktrees/
 
 # ── Local agent / scratch docs (use `git add -f` to force-share) ─────
-docs/
+/docs/
+.pkg_obsolete/
 
 # ── Deploy copy artifacts (kept out of source control) ──────────────
 hermes-agent/deploy_copy/

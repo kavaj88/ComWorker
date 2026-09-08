@@ -1,3 +1,4 @@
+# syntax=docker/dockerfile:1.7
 # ── Stage 1: Build ────────────────────────────────────────────────────
 FROM node:22-alpine AS builder
 
@@ -5,7 +6,8 @@ WORKDIR /app
 
 # Install dependencies first (layer cache)
 COPY package.json package-lock.json* ./
-RUN npm config set registry https://registry.npmmirror.com && npm ci
+RUN --mount=type=cache,id=comworker-cca-npm,target=/root/.npm \
+    npm config set registry https://registry.npmmirror.com && npm ci --prefer-offline
 
 # Copy source and build
 COPY . .

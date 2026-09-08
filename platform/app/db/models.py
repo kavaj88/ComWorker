@@ -165,6 +165,10 @@ class ModelProviderConfig(Base):
     # user may use it. {"mode":"allow","user_ids":[...]} => only listed users.
     # {"mode":"deny","user_ids":[...]} => everyone except listed users.
     user_scope: Mapped[dict] = mapped_column(JSON, nullable=True, default=lambda: {"mode": "all"})
+    # When True, newly registered users are auto-added to this provider's
+    # allow-list (only relevant when user_scope.mode == "allow"). Mirrors the
+    # skill "新用户默认安装" behaviour for models.
+    auto_install_new_users: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default="false")
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())
 

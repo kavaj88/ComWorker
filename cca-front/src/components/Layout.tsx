@@ -16,7 +16,6 @@ import {
   Minimize2,
   Pencil,
   Plus,
-  Puzzle,
   Plug,
   Radio,
   Sparkles,
@@ -72,7 +71,6 @@ const primaryNav = [
   { to: '/connectors', label: '连接器', icon: Plug },
   { to: '/experts', label: '专家', icon: Bot },
   { to: '/channels', label: '渠道管理', icon: Radio },
-  { to: '/plugins', label: '插件管理', icon: Puzzle },
 ]
 
 const userNav = [

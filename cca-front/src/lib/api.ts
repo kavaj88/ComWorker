@@ -344,6 +344,7 @@ export interface ModelChoice {
   provider: string
   providerName?: string
   disabled?: boolean
+  owner?: "admin" | "user"
 }
 
 export interface ModelsResult {
@@ -388,6 +389,47 @@ export function isLoggedIn(): boolean {
 
 let refreshPromise: Promise<boolean> | null = null
 
+/**
+ * 把后端错误体规范化为人类可读字符串。
+ *
+ * 后端 `detail` 可能是三种形态，直接塞进 new Error() 会退化成 "[object Object]"：
+ *   1. 字符串   —— "用户名已存在"
+ *   2. 对象     —— { code: "setup_required", message: "...", missing_steps: [...] }
+ *   3. 数组     —— FastAPI 422 校验错误 [{ loc: [...], msg, type }, ...]
+ * 因此这里统一摊平成可读文本。
+ */
+function stringifyErrorDetail(detail: unknown): string {
+  if (typeof detail === "string") return detail
+  if (Array.isArray(detail)) {
+    const parts = detail
+      .map((item) => {
+        if (item && typeof item === "object") {
+          const rec = item as { loc?: unknown[]; msg?: string; message?: string }
+          const field = Array.isArray(rec.loc)
+            ? rec.loc.filter((p) => p !== "body" && p !== "query" && p !== "path").join(".")
+            : ""
+          const msg = rec.msg || rec.message || ""
+          return field ? `${field}: ${msg}` : msg
+        }
+        return String(item)
+      })
+      .filter(Boolean)
+    return parts.length ? parts.join("; ") : ""
+  }
+  if (detail && typeof detail === "object") {
+    const rec = detail as { message?: unknown; msg?: unknown; detail?: unknown }
+    if (typeof rec.message === "string") return rec.message
+    if (typeof rec.msg === "string") return rec.msg
+    if (rec.detail !== undefined) return stringifyErrorDetail(rec.detail)
+    try {
+      return JSON.stringify(detail)
+    } catch {
+      return ""
+    }
+  }
+  return ""
+}
+
 async function parseErrorMessage(res: Response): Promise<string> {
   const fallback = `请求失败 (${res.status})`
 
@@ -396,8 +438,11 @@ async function parseErrorMessage(res: Response): Promise<string> {
     if (!body) return fallback
 
     try {
-      const data = JSON.parse(body) as { detail?: string; message?: string }
-      return data.detail || data.message || body || fallback
+      const data = JSON.parse(body) as { detail?: unknown; message?: unknown }
+      const fromDetail = stringifyErrorDetail(data.detail)
+      const fromMessage =
+        typeof data.message === "string" ? data.message : stringifyErrorDetail(data.message)
+      return fromDetail || fromMessage || fallback
     } catch {
       return body || fallback
     }
@@ -522,10 +567,13 @@ export interface CronJob {
   schedule_expr: string | null
   schedule_every_ms: number | null
   message: string
+  model?: string | null
+  skills?: string[] | null
   deliver: boolean
   channel: string | null
   to: string | null
   session_key?: string | null
+  session_title?: string | null
   last_output?: string | null
   last_output_at_ms?: number | null
   last_delivery_error?: string | null
@@ -544,6 +592,8 @@ export async function listCronJobs(includeDisabled = true): Promise<CronJob[]> {
 export async function createCronJob(params: {
   name: string
   message: string
+  model?: string
+  skills?: string[]
   agentId?: string
   sessionKey?: string
   sessionTitle?: string
@@ -554,6 +604,28 @@ export async function createCronJob(params: {
   return fetchJSON<CronJob>('/api/comworker/cron/jobs', {
     method: 'POST',
     body: JSON.stringify(params),
+  })
+}
+
+export async function updateCronJob(
+  jobId: string,
+  params: {
+    name?: string
+    message?: string
+    model?: string
+    skills?: string[]
+    every_seconds?: number
+    cron_expr?: string
+    at_iso?: string
+    enabled?: boolean
+  },
+): Promise<CronJob> {
+  return fetchJSON<CronJob>(`/api/comworker/cron/jobs/${encodeURIComponent(jobId)}`, {
+    method: 'PUT',
+    body: JSON.stringify({
+      ...params,
+      prompt: params.message,
+    }),
   })
 }
 
@@ -1224,6 +1296,29 @@ export interface SkillInfo {
   category?: string
   title?: string
   owner?: 'admin' | 'user'
+  /**
+   * Backend-resolved (or frontmatter-declared) platform connector this skill
+   * depends on, e.g. ``lexiang`` or ``wecom``. ``null``/missing means the
+   * skill runs without any connector (it has no env contract).
+   */
+  requires_connector?: string | null
+  /**
+   * Resolved by the backend against the current per-user ``enabled``
+   * setting: ``true`` when the skill has no connector dependency OR the
+   * required connector is currently enabled for this user; ``false`` when
+   * a required connector is disabled; ``undefined`` when the backend did
+   * not perform the join (older gateway versions).
+   */
+  connector_enabled?: boolean
+  /**
+   * Whether this skill appears in the user's installed set (the union of
+   * skills the user installed via the skill store and skills pushed by an
+   * admin). The chat context picker uses this as its primary filter --
+   * skills that are present in the container but never opted into are
+   * hidden from the picker. ``undefined`` when the backend did not perform
+   * the join.
+   */
+  installed?: boolean
 }
 
 export interface SkillFileInfo {
@@ -1517,35 +1612,6 @@ export async function saveChannelConfig(channelType: string, config: Record<stri
 
 export async function deleteChannelConfig(channelType: string): Promise<{ ok: boolean }> {
   return fetchJSON<{ ok: boolean }>(`/api/comworker/channels/${encodeURIComponent(channelType)}/config`, { method: 'DELETE' })
-}
-
-export interface PluginInfo {
-  name: string
-  description: string
-  source: string
-  version?: string
-  installedAt?: string
-  enabled?: boolean
-  agents: Array<{ name: string; description: string; model: string | null }>
-  commands: Array<{ name: string; description: string; argument_hint: string | null }>
-  skills: string[]
-}
-
-export async function listPlugins(): Promise<PluginInfo[]> {
-  return fetchJSON<PluginInfo[]>('/api/comworker/plugins')
-}
-
-export async function installPlugin(spec: string): Promise<{ ok: boolean; output: string }> {
-  return fetchJSON<{ ok: boolean; output: string }>('/api/comworker/plugins/install', {
-    method: 'POST',
-    body: JSON.stringify({ spec }),
-  })
-}
-
-export async function uninstallPlugin(name: string): Promise<{ ok: boolean }> {
-  return fetchJSON<{ ok: boolean }>(`/api/comworker/plugins/${encodeURIComponent(name)}`, {
-    method: 'DELETE',
-  })
 }
 
 export async function logoutChannel(channelType: string, accountId?: string): Promise<Record<string, unknown>> {

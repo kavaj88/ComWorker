@@ -1,13 +1,10 @@
 import { useState, useEffect, useCallback, useRef } from 'react'
 import {
   RefreshCw,
-  Trash2,
   AlertCircle,
-  Settings,
   Loader2,
-  Plus,
   ChevronDown,
-  ChevronUp,
+  ChevronRight,
   X,
   Save,
   CheckCircle,
@@ -17,7 +14,6 @@ import {
 import { useNavigate } from 'react-router-dom'
 import type {
   ChannelsStatusResult,
-  ChannelAccountSnapshot,
 } from '../lib/api'
 import {
   getChannelsStatus,
@@ -26,13 +22,22 @@ import {
   saveChannelConfig,
   deleteChannelConfig,
   getAccessToken,
-  listPlugins,
 } from '../lib/api'
 
 // Static channel catalog — only real ComWorker-supported channels
-const CHANNEL_CATALOG: Array<{ id: string; label: string; description: string; icon: string }> = [
-  { id: 'weixin', label: '微信', description: '通过 comworker-weixin 插件扫码绑定，首次接入会显示二维码', icon: '🟩' },
-  { id: 'telegram', label: 'Telegram', description: '通过 Telegram Bot 接入', icon: '✈️' },
+type ChannelCatalogItem = {
+  id: string
+  label: string
+  description: string
+  icon: string
+  featured?: boolean
+  displayName?: string
+  guideUrl?: string
+  recommended?: boolean
+}
+const CHANNEL_CATALOG: ChannelCatalogItem[] = [
+  { id: 'weixin', label: '微信', displayName: '微信助理集成', description: '扫码绑定（Hermes 微信网关），首次接入会显示二维码', icon: '🟩', featured: true, recommended: true },
+  { id: 'telegram', label: 'Telegram', displayName: 'Telegram 助理集成', description: '通过 Telegram Bot 接入', icon: '✈️', featured: true },
   { id: 'discord', label: 'Discord', description: '通过 Discord Bot 接入', icon: '🎮' },
   { id: 'whatsapp', label: 'WhatsApp', description: '通过 WhatsApp Web (Baileys) 接入', icon: '📱' },
   { id: 'slack', label: 'Slack', description: '通过 Slack Bot 接入工作区', icon: '💜' },
@@ -41,7 +46,7 @@ const CHANNEL_CATALOG: Array<{ id: string; label: string; description: string; i
   { id: 'web', label: 'Web', description: '内嵌网页对话框', icon: '🌐' },
   { id: 'googlechat', label: 'Google Chat', description: '通过 Google Chat API 接入', icon: '💚' },
   { id: 'msteams', label: 'Microsoft Teams', description: '通过 Azure Bot 接入 Teams', icon: '🟦' },
-  { id: 'feishu', label: '飞书 / Lark', description: '通过飞书/Lark 机器人接入', icon: '📘' },
+  { id: 'feishu', label: '飞书 / Lark', displayName: '飞书 / Lark 助理集成', description: '通过飞书/Lark 机器人接入', icon: '📘', featured: true },
   { id: 'matrix', label: 'Matrix', description: '通过 Matrix 协议接入（支持 E2EE）', icon: '🔷' },
   { id: 'mattermost', label: 'Mattermost', description: '通过 Mattermost Bot 接入', icon: '🔵' },
   { id: 'irc', label: 'IRC', description: '通过 IRC 协议接入', icon: '📡' },
@@ -51,9 +56,9 @@ const CHANNEL_CATALOG: Array<{ id: string; label: string; description: string; i
   { id: 'nextcloud-talk', label: 'Nextcloud Talk', description: '通过 Nextcloud Talk Bot 接入', icon: '☁️' },
   { id: 'synology-chat', label: 'Synology Chat', description: '通过 Synology Chat Bot 接入', icon: '🟢' },
   { id: 'zalo', label: 'Zalo', description: '通过 Zalo OA API 接入', icon: '🔵' },
-  { id: 'qqbot', label: 'QQ', description: '通过 QQ 机器人接入（需安装 QQBot 插件）', icon: '🐧' },
-  { id: 'wecom', label: '企业微信', description: '通过企业微信 AI Bot WebSocket 接入（需安装 WeCom 插件）', icon: '💼' },
-  { id: 'dingtalk', label: '钉钉', description: '通过钉钉企业机器人接入（需安装 DingTalk 插件）', icon: '💙' },
+  { id: 'qqbot', label: 'QQ', displayName: 'QQ 助理集成', description: '通过 QQ 机器人接入（需安装 QQBot 插件）', icon: '🐧', featured: true },
+  { id: 'wecom', label: '企业微信', displayName: '企业微信助理集成', description: '通过企业微信 AI Bot WebSocket 接入（需安装 WeCom 插件）', icon: '💼', featured: true },
+  { id: 'dingtalk', label: '钉钉', displayName: '钉钉助理集成', description: '通过钉钉企业机器人接入（需安装 DingTalk 插件）', icon: '💙', featured: true },
 ]
 
 const CHANNEL_ICONS: Record<string, string> = Object.fromEntries(
@@ -61,8 +66,7 @@ const CHANNEL_ICONS: Record<string, string> = Object.fromEntries(
 )
 
 const WEIXIN_CHANNEL_ID = 'weixin'
-const WEIXIN_PLUGIN_NAME = 'comworker-weixin'
-const WEIXIN_LOGIN_COMMAND = `comworker channels login --channel ${WEIXIN_PLUGIN_NAME}`
+const WEIXIN_LOGIN_COMMAND = 'export PATH=/opt/hermes/.venv/bin:$PATH; cd /opt/hermes && python /opt/hermes/weixin_qr_login.py'
 
 function base64UrlDecode(value: string): string {
   const base = value.replace(/-/g, '+').replace(/_/g, '/')
@@ -368,8 +372,8 @@ export default function Channels() {
   const [configLoading, setConfigLoading] = useState(false)
   const [configSaving, setConfigSaving] = useState(false)
 
-  // Expanded account details
-  const [expandedChannel, setExpandedChannel] = useState<string | null>(null)
+  // Collapsible "其他渠道" section
+  const [showOthers, setShowOthers] = useState(false)
 
   // Delete confirmation
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null)
@@ -472,19 +476,21 @@ export default function Channels() {
   const channelAccounts = status?.channelAccounts || {}
   const channelLabels = status?.channelLabels || {}
 
-  // Channels with gateway accounts (actively running/configured in gateway)
+  // Channels with gateway accounts (actively running in gateway)
   const gatewayChannels = (status?.channelOrder || []).filter(
     (ch) => channelAccounts[ch] && channelAccounts[ch].length > 0,
   )
 
-  // Merge: channels from gateway + channels configured in comworker.json
-  const allConfiguredIds = new Set([...gatewayChannels, ...configuredTypes])
-  const configuredChannels = Array.from(allConfiguredIds)
+  // Per-channel status: connected (gateway active) / configured (comworker.json only) / available (none)
+  const channelStatus: Record<string, 'connected' | 'configured' | 'available'> = {}
+  for (const ch of CHANNEL_CATALOG) {
+    if (gatewayChannels.includes(ch.id)) channelStatus[ch.id] = 'connected'
+    else if (configuredTypes.includes(ch.id)) channelStatus[ch.id] = 'configured'
+    else channelStatus[ch.id] = 'available'
+  }
 
-  // Available = static catalog entries not yet configured
-  const availableChannels = CHANNEL_CATALOG.filter(
-    (ch) => !allConfiguredIds.has(ch.id),
-  )
+  const featuredChannels = CHANNEL_CATALOG.filter((c) => c.featured)
+  const otherChannels = CHANNEL_CATALOG.filter((c) => !c.featured)
 
   return (
     <div className="h-full overflow-y-auto bg-light-bg px-6 py-5 sm:px-8 lg:px-10">
@@ -536,122 +542,47 @@ export default function Channels() {
         </div>
       )}
 
-      {/* Configured channels */}
-      {configuredChannels.length > 0 && (
-        <div className="mb-8">
-          <h2 className="text-sm font-semibold text-light-text-secondary uppercase tracking-wider mb-3">
-            已接入渠道
-          </h2>
-          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-            {configuredChannels.map((channelId) => {
-              const accounts = channelAccounts[channelId] || []
-              const catalogEntry = CHANNEL_CATALOG.find((c) => c.id === channelId)
-              const label = channelLabels[channelId] || catalogEntry?.label || channelId
-              const icon = CHANNEL_ICONS[channelId] || catalogEntry?.icon || '💬'
-              const isExpanded = expandedChannel === channelId
-
-              return (
-                <div
-                  key={channelId}
-                  className="rounded-xl border border-light-border bg-light-card overflow-hidden"
-                >
-                  {/* Channel header */}
-                  <div className="flex items-center justify-between p-4">
-                    <div className="flex items-center gap-3">
-                      <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-light-card-hover text-xl">
-                        {icon}
-                      </div>
-                      <div>
-                        <div className="text-sm font-semibold text-light-text">{label}</div>
-                        <div className="flex items-center gap-2 mt-0.5">
-                          {accounts.length > 0 ? (
-                            accounts.map((acc) => (
-                              <AccountStatusBadge key={acc.accountId} account={acc} />
-                            ))
-                          ) : (
-                            <span className="flex items-center gap-1 text-xs text-light-text-secondary">
-                              <span className="inline-block w-1.5 h-1.5 rounded-full bg-gray-400" />
-                              已配置（需重启网关生效）
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <button
-                        onClick={() => openConfig(channelId)}
-                        className="rounded-lg p-1.5 text-light-text-secondary hover:text-light-text hover:bg-light-card-hover transition-colors"
-                        title="配置"
-                      >
-                        <Settings size={15} />
-                      </button>
-                      <button
-                        onClick={() => setExpandedChannel(isExpanded ? null : channelId)}
-                        className="rounded-lg p-1.5 text-light-text-secondary hover:text-light-text hover:bg-light-card-hover transition-colors"
-                        title="详情"
-                      >
-                        {isExpanded ? <ChevronUp size={15} /> : <ChevronDown size={15} />}
-                      </button>
-                      <button
-                        onClick={() => setDeleteTarget(channelId)}
-                        className="rounded-lg p-1.5 text-light-text-secondary hover:text-accent-red hover:bg-accent-red/10 transition-colors"
-                        title="删除"
-                      >
-                        <Trash2 size={15} />
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Expanded account details */}
-                  {isExpanded && (
-                    <div className="border-t border-light-border bg-light-card-hover/70 px-4 py-3">
-                      {accounts.map((acc) => (
-                        <AccountDetail key={acc.accountId} account={acc} />
-                      ))}
-                    </div>
-                  )}
-                </div>
-              )
-            })}
-          </div>
+      {/* Featured channels */}
+      <div className="mb-8">
+        <h2 className="mb-3 text-sm font-semibold uppercase tracking-wider text-light-text-secondary">
+          主渠道
+        </h2>
+        <div className="flex flex-col gap-3">
+          {featuredChannels.map((ch) => (
+            <ChannelRow
+              key={ch.id}
+              entry={ch}
+              status={channelStatus[ch.id] || 'available'}
+              onConfig={() => openConfig(ch.id)}
+              onDelete={() => setDeleteTarget(ch.id)}
+            />
+          ))}
         </div>
-      )}
+      </div>
 
-      {/* Available channels (not yet configured) */}
-      {availableChannels.length > 0 && (
-        <div>
-          <h2 className="text-sm font-semibold text-light-text-secondary uppercase tracking-wider mb-3">
-            可用渠道
-          </h2>
-          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-            {availableChannels.map((ch) => (
-              <button
+      {/* Other channels (collapsible) */}
+      <div>
+        <button
+          onClick={() => setShowOthers((v) => !v)}
+          className="mb-3 flex items-center gap-1.5 text-sm font-semibold uppercase tracking-wider text-light-text-secondary transition-colors hover:text-light-text"
+        >
+          {showOthers ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+          其他渠道（{otherChannels.length}）
+        </button>
+        {showOthers && (
+          <div className="flex flex-col gap-3">
+            {otherChannels.map((ch) => (
+              <ChannelRow
                 key={ch.id}
-                onClick={() => openConfig(ch.id)}
-                className="flex items-center gap-3 rounded-xl border border-light-border bg-light-card p-4 text-left hover:bg-light-card-hover transition-colors group"
-              >
-                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-light-card-hover text-xl opacity-50 group-hover:opacity-80 transition-opacity">
-                  {ch.icon}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="text-sm font-semibold text-light-text">{ch.label}</div>
-                  <div className="text-xs text-light-text-secondary mt-0.5 truncate">
-                    {ch.description}
-                  </div>
-                </div>
-                <Plus size={16} className="text-light-text-secondary opacity-0 group-hover:opacity-100 transition-opacity" />
-              </button>
+                entry={ch}
+                status={channelStatus[ch.id] || 'available'}
+                onConfig={() => openConfig(ch.id)}
+                onDelete={() => setDeleteTarget(ch.id)}
+              />
             ))}
           </div>
-        </div>
-      )}
-
-      {/* No channels at all (shouldn't happen with static catalog, but just in case) */}
-      {configuredChannels.length === 0 && availableChannels.length === 0 && !error && (
-        <div className="text-center py-20 text-light-text-secondary text-sm">
-          加载中...
-        </div>
-      )}
+        )}
+      </div>
 
       {/* Config modal */}
       {configChannel && (
@@ -743,25 +674,8 @@ function WeixinBindModal({ onClose, onBound }: WeixinBindModalProps) {
       setError('')
       setConnected(false)
       setRunning(true)
-      setPluginReady(false)
+      setPluginReady(true)
       hadSessionRef.current = false
-
-      try {
-        const plugins = await listPlugins()
-        if (disposed) return
-        const installed = plugins.some((plugin) => plugin.name === WEIXIN_PLUGIN_NAME)
-        if (!installed) {
-          setRunning(false)
-          setError('未检测到微信插件。当前页面只负责拉起扫码登录，请先使用预装了 comworker-weixin 的 bridge 镜像。')
-          return
-        }
-        setPluginReady(true)
-      } catch (err: any) {
-        if (disposed) return
-        setRunning(false)
-        setError(err?.message || '获取插件列表失败')
-        return
-      }
 
       const proto = window.location.protocol === 'https:' ? 'wss' : 'ws'
       const wsUrl = `${proto}://${window.location.host}/api/comworker/terminal/ws?token=${encodeURIComponent(token)}`
@@ -874,7 +788,7 @@ function WeixinBindModal({ onClose, onBound }: WeixinBindModalProps) {
             </span>
             <span className={`inline-flex items-center gap-1 ${pluginReady ? 'text-accent-green' : 'text-light-text-secondary'}`}>
               <span className={`inline-block h-2 w-2 rounded-full ${pluginReady ? 'bg-accent-green' : 'bg-gray-500'}`} />
-              {pluginReady ? '微信插件已就绪' : '检查微信插件中'}
+              {pluginReady ? '微信平台已就绪' : '微信平台就绪'}
             </span>
             <code className="rounded bg-light-card px-2 py-1 text-[11px] text-light-text-secondary">{WEIXIN_LOGIN_COMMAND}</code>
           </div>
@@ -938,70 +852,78 @@ function WeixinBindModal({ onClose, onBound }: WeixinBindModalProps) {
 
 // --- Sub components ---
 
-function AccountStatusBadge({ account }: { account: ChannelAccountSnapshot }) {
-  const hasRecentTraffic = Boolean(account.lastInboundAt || account.lastOutboundAt)
-  const probeOk =
-    typeof account.probe === 'object' &&
-    account.probe !== null &&
-    'ok' in account.probe &&
-    (account.probe as { ok?: unknown }).ok === true
-  const isConnected = account.connected === true || hasRecentTraffic || probeOk
-  const isRunning = account.running
-  const hasError = !!account.lastError
-
-  let color = 'bg-gray-500'
-  let label = '未知'
-
-  if (hasError) {
-    color = 'bg-accent-red'
-    label = '错误'
-  } else if (isConnected) {
-    color = 'bg-accent-green'
-    label = '已连接'
-  } else if (isRunning) {
-    color = 'bg-accent-yellow animate-pulse'
-    label = '连接中'
-  } else if (account.configured) {
-    color = 'bg-gray-400'
-    label = '已配置'
-  } else {
-    label = '未配置'
+function ChannelStatusBadge({ status }: { status: 'connected' | 'configured' | 'available' }) {
+  if (status === 'connected') {
+    return (
+      <span className="flex items-center gap-1 text-[11px] text-accent-green">
+        <span className="inline-block h-1.5 w-1.5 rounded-full bg-accent-green" />
+        已连接
+      </span>
+    )
   }
-
+  if (status === 'configured') {
+    return (
+      <span className="flex items-center gap-1 text-[11px] text-light-text-secondary">
+        <span className="inline-block h-1.5 w-1.5 rounded-full bg-gray-400" />
+        已配置
+      </span>
+    )
+  }
   return (
-    <span className="flex items-center gap-1 text-xs text-light-text-secondary">
-      <span className={`inline-block w-1.5 h-1.5 rounded-full ${color}`} />
-      {account.name || account.accountId}: {label}
+    <span className="flex items-center gap-1 text-[11px] text-light-text-secondary">
+      <span className="inline-block h-1.5 w-1.5 rounded-full bg-gray-300" />
+      未配置
     </span>
   )
 }
 
-function AccountDetail({ account }: { account: ChannelAccountSnapshot }) {
-  const fields: Array<[string, unknown]> = []
-
-  if (account.name) fields.push(['名称', account.name])
-  fields.push(['账户 ID', account.accountId])
-  if (account.mode) fields.push(['模式', account.mode])
-  if (account.enabled !== undefined && account.enabled !== null) fields.push(['启用', account.enabled ? '是' : '否'])
-  if (account.configured !== undefined && account.configured !== null) fields.push(['已配置', account.configured ? '是' : '否'])
-  if (account.connected !== undefined && account.connected !== null) fields.push(['已连接', account.connected ? '是' : '否'])
-  if (account.running !== undefined && account.running !== null) fields.push(['运行中', account.running ? '是' : '否'])
-  if (account.webhookUrl) fields.push(['Webhook', account.webhookUrl])
-  if (account.lastConnectedAt) fields.push(['上次连接', new Date(account.lastConnectedAt).toLocaleString()])
-  if (account.lastError) fields.push(['错误', account.lastError])
-  if (account.reconnectAttempts) fields.push(['重连次数', account.reconnectAttempts])
-
+function ChannelRow({
+  entry,
+  status,
+  onConfig,
+  onDelete,
+}: {
+  entry: ChannelCatalogItem
+  status: 'connected' | 'configured' | 'available'
+  onConfig: () => void
+  onDelete: () => void
+}) {
+  const isConfigured = status !== 'available'
   return (
-    <div className="mb-3 last:mb-0">
-      <div className="grid grid-cols-[120px_1fr] gap-x-3 gap-y-1 text-xs">
-        {fields.map(([label, value]) => (
-          <div key={label as string} className="contents">
-            <span className="text-light-text-secondary font-medium">{label as string}</span>
-            <span className={`text-light-text truncate ${label === '错误' ? 'text-accent-red' : ''}`}>
-              {String(value)}
+    <div className="flex items-center gap-3 rounded-xl border border-light-border bg-light-card px-4 py-3">
+      <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-light-card-hover text-xl">
+        {entry.icon}
+      </div>
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-semibold text-light-text">{entry.displayName || entry.label}</span>
+          {entry.recommended && (
+            <span className="rounded-full bg-accent-green/10 px-2 py-0.5 text-[10px] font-medium text-accent-green">
+              推荐
             </span>
-          </div>
-        ))}
+          )}
+          <ChannelStatusBadge status={status} />
+        </div>
+        <div className="mt-0.5 truncate text-xs text-light-text-secondary">{entry.description}</div>
+      </div>
+      <div className="flex shrink-0 items-center gap-2">
+        {status === 'configured' && (
+          <span className="text-[11px] text-accent-yellow">需重启网关</span>
+        )}
+        <button
+          onClick={onConfig}
+          className="rounded-lg border border-light-border px-3 py-1 text-xs text-light-text-secondary transition-colors hover:text-light-text"
+        >
+          配置
+        </button>
+        {isConfigured && (
+          <button
+            onClick={onDelete}
+            className="rounded-lg border border-light-border px-3 py-1 text-xs text-accent-red transition-colors hover:bg-accent-red/10"
+          >
+            解绑
+          </button>
+        )}
       </div>
     </div>
   )

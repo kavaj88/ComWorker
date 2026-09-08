@@ -1114,6 +1114,61 @@ def parse_available_output_tokens_from_error(error_msg: str) -> Optional[int]:
     return None
 
 
+def parse_model_output_cap_from_error(error_msg: str) -> Optional[int]:
+    """Detect a model's HARD output-cap error and return the max allowed output tokens.
+
+    Unlike :func:`parse_available_output_tokens_from_error` (which handles the
+    input+output exceeding the context *window* case), this handles the case
+    where the requested ``max_tokens`` exceeds the model's own output ceiling —
+    a distinct, per-model limit that is independent of the current prompt size:
+
+      * Volces Ark (kimi-k2.7-code):
+        "The parameter `max_tokens` specified in the request is not valid:
+         integer above maximum value, expected a value <= 32768, but got
+         128000 instead."
+      * OpenAI-compatible: "max_tokens ... must be <= 16384",
+        "maximum is 16384", "cannot exceed 16384".
+
+    Returns the ceiling (e.g. 32768) so the caller can retry this single call
+    with a lower ``max_tokens`` — no per-model config required.  Returns
+    ``None`` if the error does not look like a hard output-cap error.
+    """
+    if not error_msg:
+        return None
+    msg = error_msg.lower()
+    if "max_tokens" not in msg:
+        return None
+
+    # Ordered most-specific first.  The captured number is the *allowed*
+    # ceiling, never the rejected value (e.g. "got 128000" is ignored because
+    # the "<= 32768" pattern matches first and returns early).
+    patterns = [
+        r"expected a value\s*<=?\s*(\d+)",
+        r"must be\s*<=?\s*(\d+)",
+        r"must be (?:less than or equal to|no more than|at most)\s*(\d+)",
+        r"maximum is (\d+)",
+        r"cannot (?:exceed|be greater than)\s*(\d+)",
+        r"should be (?:less than or equal to|<=)\s*(\d+)",
+    ]
+    for pat in patterns:
+        match = re.search(pat, msg)
+        if match:
+            val = int(match.group(1))
+            if val >= 1:
+                return val
+
+    # Fallback: "integer above maximum value" with no explicit ceiling number
+    # elsewhere — try to recover a limit from nearby phrasing.
+    if "above maximum value" in msg:
+        _m = re.search(r"(?:<= |maximum is |no more than |at most )(\d+)", msg)
+        if _m:
+            val = int(_m.group(1))
+            if val >= 1:
+                return val
+
+    return None
+
+
 def _model_id_matches(candidate_id: str, lookup_model: str) -> bool:
     """Return True if *candidate_id* (from server) matches *lookup_model* (configured).
 

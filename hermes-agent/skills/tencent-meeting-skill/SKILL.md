@@ -6,6 +6,8 @@ description_en: "Tencent Meeting management (schedule, recording, transcription)
 version: 1.0.10
 homepage: https://meeting.tencent.com/
 metadata:
+  comworker:
+    requires_connector: tmeet
   clawdbot:
     requires:
       bins:

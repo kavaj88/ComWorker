@@ -12,6 +12,7 @@ version: 1.1.7
 homepage: https://ima.qq.com
 metadata:
   comworker:
+    requires_connector: ima-mcp
     emoji: 🔧
     requires:
       env:

@@ -73,7 +73,7 @@ async def require_setup_complete(
             status_code=status.HTTP_403_FORBIDDEN,
             detail={
                 "code": "setup_required",
-                "message": "Platform setup is not complete. Visit /setup to finish onboarding.",
+                "message": "平台初始化未完成，管理功能已锁定。请先完成初始化后再操作。",
                 "missing_steps": status_["missing_steps"],
             },
         )

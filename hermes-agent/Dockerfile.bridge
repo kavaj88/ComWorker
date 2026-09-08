@@ -1,3 +1,4 @@
+# syntax=docker/dockerfile:1.7
 ARG BASE_TAG=latest
 FROM hermes-base:${BASE_TAG}
 
@@ -18,7 +19,10 @@ ENV PLAYWRIGHT_DOWNLOAD_HOST=${PLAYWRIGHT_DOWNLOAD_HOST}
 # Install document-processing and browser-UI system dependencies.
 # The apt mirror is controlled by APT_DEBIAN_MIRROR / APT_SECURITY_MIRROR args
 # (defaults to empty for stock Debian mirrors; set to USTC mirrors for CN builds).
-RUN if [ -n "${APT_DEBIAN_MIRROR}" ]; then \
+RUN --mount=type=cache,id=comworker-bridge-apt-cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,id=comworker-bridge-apt-lists,target=/var/lib/apt/lists,sharing=locked \
+    rm -f /etc/apt/apt.conf.d/docker-clean && \
+    if [ -n "${APT_DEBIAN_MIRROR}" ]; then \
         sed -i "s|http://deb.debian.org/debian|${APT_DEBIAN_MIRROR}|g" /etc/apt/sources.list.d/debian.sources; \
     fi && \
     if [ -n "${APT_SECURITY_MIRROR}" ]; then \
@@ -30,10 +34,10 @@ RUN if [ -n "${APT_DEBIAN_MIRROR}" ]; then \
         libffi-dev shared-mime-info chromium python3-pip gosu \
         poppler-utils tesseract-ocr tesseract-ocr-chi-sim tesseract-ocr-eng \
         libreoffice-core libreoffice-writer libreoffice-calc \
-        libmagic1 file antiword catdoc && \
-    rm -rf /var/lib/apt/lists/*
+        libmagic1 file antiword catdoc
 
-RUN pip3 install --break-system-packages --no-cache-dir --retries 8 --timeout 120 \
+RUN --mount=type=cache,id=comworker-bridge-pip,target=/root/.cache/pip \
+    pip3 install --break-system-packages --retries 8 --timeout 120 \
         -i ${PIP_INDEX_URL} \
         requests pymupdf pdfplumber python-docx openpyxl python-pptx pandas xlrd odfpy python-magic chardet
 
@@ -45,7 +49,8 @@ RUN npm config set fetch-retries 5 && \
 
 # WhatsApp bridge (optional)
 COPY --chown=hermes:hermes scripts/whatsapp-bridge/package.json scripts/whatsapp-bridge/package-lock.json ./scripts/whatsapp-bridge/
-RUN if [ "$HERMES_INSTALL_WHATSAPP_BRIDGE" = "true" ]; then \
+RUN --mount=type=cache,id=comworker-bridge-npm,target=/root/.npm \
+    if [ "$HERMES_INSTALL_WHATSAPP_BRIDGE" = "true" ]; then \
         cd /opt/hermes/scripts/whatsapp-bridge && npm install --prefer-offline --no-audit --no-fund; \
     else \
         echo "Skipping WhatsApp bridge npm install; rebuild with HERMES_INSTALL_WHATSAPP_BRIDGE=true to include WhatsApp bridge dependencies."; \
@@ -62,12 +67,20 @@ COPY --chown=hermes:hermes batch_runner.py cli.py hermes_constants.py hermes_log
 RUN chown -R hermes:hermes /opt/hermes && \
     chmod -R u+w /opt/hermes
 USER hermes
-RUN if [ ! -d /opt/hermes/.venv ]; then uv venv --seed /opt/hermes/.venv; fi && \
-    uv pip install --no-cache-dir -i ${PIP_INDEX_URL} setuptools wheel weasyprint \
+RUN --mount=type=cache,id=comworker-bridge-uv,target=/opt/hermes/.cache/uv,uid=10000,gid=10000 \
+    export UV_CACHE_DIR=/opt/hermes/.cache/uv && \
+    if [ ! -d /opt/hermes/.venv ]; then uv venv --seed /opt/hermes/.venv; fi && \
+    uv pip install -i ${PIP_INDEX_URL} setuptools wheel weasyprint \
         pymupdf pdfplumber python-docx openpyxl python-pptx pandas xlrd odfpy python-magic chardet && \
-    uv pip install --no-build-isolation --no-cache-dir -i ${PIP_INDEX_URL} --extra-index-url https://pypi.org/simple/ -e ".[all]"
+    uv pip install --no-build-isolation -i ${PIP_INDEX_URL} --extra-index-url https://pypi.org/simple/ -e ".[all]"
 
 COPY --chown=hermes:hermes . /opt/hermes
+
+# WeChat (iLink) QR login helper. The Channels UI shells out to
+# /opt/hermes/weixin_qr_login.py, so place an explicit copy at that exact path —
+# the bulk COPY above only lands it under /opt/hermes/scripts/. Without this the
+# script was hot-patch-only (`docker cp`) and vanished on every image rebuild.
+COPY --chown=hermes:hermes scripts/weixin_qr_login.py /opt/hermes/weixin_qr_login.py
 
 # Build frontend assets (web dashboard + terminal UI)
 # NOTE: ComWorker does NOT use the hermes self-contained web UI — it serves its
@@ -83,7 +96,11 @@ COPY --chown=hermes:hermes . /opt/hermes
 USER root
 RUN chmod -R a+rX /opt/hermes && \
     chown -R hermes:hermes /opt/hermes/.venv && \
-    chmod +x /opt/hermes/docker/entrypoint.sh
+    chmod +x /opt/hermes/docker/entrypoint.sh && \
+    # Normalize s6 service type files to LF. Windows checkouts produce CRLF
+    # (longrun\r\n) which makes s6-rc-compile fail at container start with
+    # "invalid .../type: must be oneshot, longrun, or bundle".
+    find /etc/s6-overlay/s6-rc.d/ -name type -exec sed -i 's/\r$//' {} \;
 
 ENV HERMES_WEB_DIST=/opt/hermes/hermes_cli/web_dist
 ENV HERMES_HOME=/opt/data
@@ -97,7 +114,6 @@ ENTRYPOINT [ "/opt/hermes/docker/entrypoint.sh" ]
 ENV API_SERVER_ENABLED=true
 ENV API_SERVER_HOST=0.0.0.0
 ENV API_SERVER_PORT=18080
-ENV API_SERVER_KEY=dev-hermes-bridge-key
 ENV GATEWAY_ALLOW_ALL_USERS=true
 
 EXPOSE 18080

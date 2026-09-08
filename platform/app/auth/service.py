@@ -101,7 +101,43 @@ async def create_user(
     db.add(user)
     await db.commit()
     await db.refresh(user)
+
+    # Auto-install providers flagged for new users (mirrors skill default-install).
+    # Only providers whose scope mode is "allow" and that have auto_install_new_users
+    # enabled get the new user appended to their allow-list.
+    try:
+        await _auto_install_providers_for_new_user(db, user.id)
+    except Exception:  # noqa: BLE001
+        # Never block user creation on a best-effort auto-install.
+        pass
+
     return user
+
+
+async def _auto_install_providers_for_new_user(db: AsyncSession, user_id: str) -> None:
+    """Append a freshly created user to the allow-list of every provider that has
+    ``auto_install_new_users=True`` and a restrictive (allow) scope mode."""
+    from app.db.models import ModelProviderConfig
+
+    result = await db.execute(
+        select(ModelProviderConfig).where(ModelProviderConfig.auto_install_new_users.is_(True))
+    )
+    changed = False
+    for provider in result.scalars().all():
+        scope = provider.user_scope
+        if not isinstance(scope, dict):
+            scope = {"mode": "all", "user_ids": []}
+        if scope.get("mode") != "allow":
+            # Only restrictive (allow) scopes need the new user explicitly added;
+            # "all"/"deny" already include (or exclude by list) new users.
+            continue
+        ids = list(scope.get("user_ids") or [])
+        if user_id not in ids:
+            ids.append(user_id)
+            provider.user_scope = {"mode": "allow", "user_ids": ids}
+            changed = True
+    if changed:
+        await db.commit()
 
 
 async def get_user_by_sso_uid(db: AsyncSession, sso_uid: str) -> User | None:

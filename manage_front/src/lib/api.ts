@@ -17,6 +17,7 @@ import type {
   UserConnectorItem,
   UserAgentItem,
   UserContainerDetail,
+  AdminCronJob,
   KnowledgeListResult,
   KnowledgeReadResult,
   KnowledgeSearchResult,
@@ -26,9 +27,55 @@ import type {
 // In development, call Gateway directly. In production (Docker), use relative URL to hit Next.js proxy.
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "";
 
+/**
+ * 把后端错误体规范化为人类可读字符串。
+ *
+ * 后端 `detail` 可能是三种形态，直接塞进 new Error() 会退化成 "[object Object]"：
+ *   1. 字符串   —— "用户名已存在"
+ *   2. 对象     —— { code: "setup_required", message: "...", missing_steps: [...] }
+ *   3. 数组     —— FastAPI 422 校验错误 [{ loc: [...], msg, type }, ...]
+ * 因此这里统一摊平成可读文本。
+ */
+function stringifyErrorDetail(detail: unknown): string {
+  if (typeof detail === "string") return detail;
+  if (Array.isArray(detail)) {
+    const parts = detail
+      .map((item) => {
+        if (item && typeof item === "object") {
+          const rec = item as { loc?: unknown[]; msg?: string; message?: string };
+          const field = Array.isArray(rec.loc)
+            ? rec.loc.filter((p) => p !== "body" && p !== "query" && p !== "path").join(".")
+            : "";
+          const msg = rec.msg || rec.message || "";
+          return field ? `${field}: ${msg}` : msg;
+        }
+        return String(item);
+      })
+      .filter(Boolean);
+    return parts.length ? parts.join("; ") : "";
+  }
+  if (detail && typeof detail === "object") {
+    const rec = detail as { message?: unknown; msg?: unknown; detail?: unknown };
+    if (typeof rec.message === "string") return rec.message;
+    if (typeof rec.msg === "string") return rec.msg;
+    if (rec.detail !== undefined) return stringifyErrorDetail(rec.detail);
+    try {
+      return JSON.stringify(detail);
+    } catch {
+      return "";
+    }
+  }
+  return "";
+}
+
 async function parseErrorMessage(res: Response): Promise<string> {
-  const err = await res.json().catch(() => null) as { detail?: string; message?: string } | null;
-  return err?.detail || err?.message || `Request failed: ${res.status}`;
+  const err = (await res.json().catch(() => null)) as { detail?: unknown; message?: unknown } | null;
+  const fallback = `Request failed: ${res.status}`;
+  if (!err) return fallback;
+  const fromDetail = stringifyErrorDetail(err.detail);
+  const fromMessage =
+    typeof err.message === "string" ? err.message : stringifyErrorDetail(err.message);
+  return fromDetail || fromMessage || fallback;
 }
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
@@ -263,6 +310,9 @@ export interface AdminProviderConfig {
   enabled: boolean;
   isDefault?: boolean;
   models: AdminModelItem[];
+  scopeMode?: "all" | "allow" | "deny";
+  scopeUserIds?: string[];
+  autoInstall?: boolean;
 }
 
 export interface AdminModelsConfig {
@@ -284,6 +334,38 @@ export async function updateModelsConfig(data: {
     body: JSON.stringify(data),
   });
 }
+
+/** Set a provider's per-user visibility scope (push to all / specified users). */
+export async function updateProviderScope(
+  providerId: string,
+  mode: "all" | "allow" | "deny",
+  userIds: string[] = [],
+): Promise<AdminProviderConfig> {
+  return request<AdminProviderConfig>(
+    `/api/admin/models/${encodeURIComponent(providerId)}/scope`,
+    {
+      method: "PUT",
+      body: JSON.stringify({ mode, user_ids: userIds }),
+    },
+  );
+}
+
+/** Toggle "新用户默认安装" for a provider. */
+export async function setProviderAutoInstall(
+  providerId: string,
+  enabled: boolean,
+): Promise<AdminProviderConfig> {
+  return request<AdminProviderConfig>(
+    `/api/admin/models/${encodeURIComponent(providerId)}/auto-install`,
+    {
+      method: "PUT",
+      body: JSON.stringify({ enabled }),
+    },
+  );
+}
+
+/** Per-user model visibility for a single user is provided by the existing
+    getUserModels / updateUserModels helpers (UserModelsResponse). */
 
 // Connectivity probe — same backend endpoint the client uses, so admin and
 // client share one source of truth for "can this provider actually answer?".
@@ -529,6 +611,16 @@ export async function adminUninstallUserSkill(
   });
 }
 
+export async function adminBatchUninstallSkills(
+  userId: string,
+  names: string[],
+): Promise<{ ok: boolean; user_id: string; names: string[]; user: string[]; managed: string[] }> {
+  return request(`/api/admin/users/${encodeURIComponent(userId)}/skills/uninstall-batch`, {
+    method: "POST",
+    body: JSON.stringify({ names }),
+  });
+}
+
 // ─── Platform MCP connectors (admin-managed) ───────────────────────────────
 
 export interface Connector {
@@ -711,6 +803,65 @@ export async function getUserAgents(userId: string): Promise<UserAgentItem[]> {
   return request<UserAgentItem[]>(`/api/admin/users/${encodeURIComponent(userId)}/agents`);
 }
 
+// ─── 管理端代管用户定时任务（复用 platform /api/admin/users/{id}/cron/jobs） ───
+export interface AdminCronJobInput {
+  name?: string;
+  message?: string;
+  every_seconds?: number;
+  cron_expr?: string;
+  at_iso?: string;
+  enabled?: boolean;
+  deliver?: boolean;
+  channel?: string | null;
+}
+
+export async function getAdminUserCronJobs(userId: string): Promise<AdminCronJob[]> {
+  return request<AdminCronJob[]>(`/api/admin/users/${encodeURIComponent(userId)}/cron/jobs`);
+}
+
+export async function adminCreateCronJob(userId: string, params: AdminCronJobInput): Promise<AdminCronJob> {
+  return request<AdminCronJob>(`/api/admin/users/${encodeURIComponent(userId)}/cron/jobs`, {
+    method: "POST",
+    body: JSON.stringify({ ...params, prompt: params.message }),
+  });
+}
+
+export async function adminUpdateCronJob(
+  userId: string,
+  jobId: string,
+  params: AdminCronJobInput,
+): Promise<AdminCronJob> {
+  return request<AdminCronJob>(
+    `/api/admin/users/${encodeURIComponent(userId)}/cron/jobs/${encodeURIComponent(jobId)}`,
+    { method: "PUT", body: JSON.stringify({ ...params, prompt: params.message }) },
+  );
+}
+
+export async function adminRunCronJob(userId: string, jobId: string): Promise<void> {
+  return request<void>(
+    `/api/admin/users/${encodeURIComponent(userId)}/cron/jobs/${encodeURIComponent(jobId)}/run`,
+    { method: "POST" },
+  );
+}
+
+export async function adminToggleCronJob(
+  userId: string,
+  jobId: string,
+  enabled: boolean,
+): Promise<AdminCronJob> {
+  return request<AdminCronJob>(
+    `/api/admin/users/${encodeURIComponent(userId)}/cron/jobs/${encodeURIComponent(jobId)}/toggle`,
+    { method: "PUT", body: JSON.stringify({ enabled }) },
+  );
+}
+
+export async function adminDeleteCronJob(userId: string, jobId: string): Promise<void> {
+  return request<void>(
+    `/api/admin/users/${encodeURIComponent(userId)}/cron/jobs/${encodeURIComponent(jobId)}`,
+    { method: "DELETE" },
+  );
+}
+
 export async function getUserContainer(userId: string): Promise<UserContainerDetail> {
   return request<UserContainerDetail>(`/api/admin/users/${encodeURIComponent(userId)}/container`);
 }
@@ -888,5 +1039,58 @@ export async function uploadPlatformLogo(file: File): Promise<{ ok: boolean; log
   });
   if (!res.ok) throw new Error(await parseErrorMessage(res));
   return res.json();
+}
+
+export interface SetupStatus {
+  required_steps: string[];
+  recommended_steps: string[];
+  completed_steps: string[];
+  missing_steps: string[];
+  missing_recommended_steps: string[];
+  is_complete: boolean;
+  is_dismissed: boolean;
+}
+
+/**
+ * 平台初始化状态。
+ *
+ * 关键：admin 路由整体挂了 require_setup_complete，初始化未完成时
+ * 除 /api/admin/models 外的所有管理端接口都会返回 403 setup_required。
+ * 管理端必须先拿到这个状态并显式提示，否则管理员会看到一连串
+ * 无法理解的失败却不知道要去做初始化。
+ */
+export async function getSetupStatus(): Promise<SetupStatus> {
+  const token = getAccessToken();
+  const headers: Record<string, string> = {};
+  if (token) headers["Authorization"] = `Bearer ${token}`;
+  const res = await fetch(`${API_BASE}/api/setup/status`, { headers });
+  if (!res.ok) throw new Error(await parseErrorMessage(res));
+  return res.json();
+}
+
+/**
+ * 修改当前登录用户（含 admin）的密码。
+ *
+ * 关键：该接口位于 /api/auth 路由，仅依赖 get_current_user，
+ * 不挂在 require_setup_complete 守卫上 —— 因此在初始化未完成、
+ * 所有 /api/admin 接口都被 403 锁死时，仍然可以调用它来完成
+ * 「修改初始管理员密码」这一步，从而解锁管理端。
+ */
+export async function changePassword(oldPassword: string, newPassword: string) {
+  return request("/api/auth/change-password", {
+    method: "PUT",
+    body: JSON.stringify({ old_password: oldPassword, new_password: newPassword }),
+  });
+}
+
+/**
+ * 标记初始化完成。仅 REQUIRED 步骤（修改初始密码）必须满足；
+ * 推荐步骤（如配置模型 Key）未做也能完成，之后随时在模型设置补。
+ */
+export async function completeSetup(): Promise<SetupStatus> {
+  return request<SetupStatus>("/api/setup/complete", {
+    method: "POST",
+    body: JSON.stringify({ confirm: true }),
+  });
 }
 

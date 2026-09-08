@@ -61,6 +61,8 @@ export interface UserModelItem {
   id: string;
   name: string;
   allowed: boolean;
+  api?: string;
+  baseUrl?: string;
   models: { id: string; name?: string; enabled?: boolean }[];
 }
 
@@ -185,6 +187,31 @@ export interface UserConnectorItem {
 export interface UserAgentItem {
   agent_id: string;
   system: boolean;
+}
+
+// 管理端代管用户定时任务（与 platform _hermes_job_to_comworker_cron_job 对齐）
+export interface AdminCronJob {
+  id: string;
+  name: string;
+  enabled: boolean;
+  schedule_kind: string;
+  schedule_display: string;
+  schedule_expr?: string | null;
+  schedule_every_ms?: number | null;
+  message: string;
+  deliver: boolean;
+  channel?: string | null;
+  to?: string | null;
+  session_key?: string | null;
+  session_title?: string | null;
+  last_output?: string | null;
+  last_output_at_ms?: number | null;
+  last_delivery_error?: string | null;
+  next_run_at_ms?: number | null;
+  last_run_at_ms?: number | null;
+  last_status?: string | null;
+  last_error?: string | null;
+  created_at_ms?: number;
 }
 
 export interface UserContainerDetail {
