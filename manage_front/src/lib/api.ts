@@ -78,7 +78,7 @@ async function parseErrorMessage(res: Response): Promise<string> {
   return fromDetail || fromMessage || fallback;
 }
 
-async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
+export async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const token = getAccessToken();
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
@@ -1093,4 +1093,5 @@ export async function completeSetup(): Promise<SetupStatus> {
     body: JSON.stringify({ confirm: true }),
   });
 }
+
 

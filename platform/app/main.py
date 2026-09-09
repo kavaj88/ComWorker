@@ -19,6 +19,8 @@ from app.db.models import Base
 from app.logging_setup import log_settings_summary, setup_logging
 from app.routes import admin, auth, connectors, llm, platform_config, proxy, models, setup
 from app.runtime_router import close_runtime_backends
+from app.gateway import admin as gateway_admin, proxy as gateway_proxy
+from app.gateway.storage import GatewayRuntime
 
 setup_logging()
 logger = logging.getLogger(__name__)
@@ -300,7 +302,13 @@ async def lifespan(app: FastAPI):
                 logger.info("Seeded %d built-in MCP connectors", n)
     except Exception:
         logger.exception("failed to seed built-in connectors")
-    yield
+    from app.db.engine import async_session
+    app.state.gateway = GatewayRuntime(async_session)
+    await app.state.gateway.start()
+    try:
+        yield
+    finally:
+        await app.state.gateway.close()
     await close_runtime_backends()
     await engine.dispose()
 
@@ -324,6 +332,8 @@ app.add_middleware(
 
 # Mount route groups
 app.include_router(auth.router)
+app.include_router(gateway_admin.router)
+app.include_router(gateway_proxy.router)
 app.include_router(llm.router)
 app.include_router(models.router)
 app.include_router(comworker_compat.router)

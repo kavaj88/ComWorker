@@ -26,6 +26,7 @@ const navItems = [
   { href: "/agents", label: "专家管理", icon: Bot },
   { href: "/models", label: "模型配置", icon: Brain },
   { href: "/capabilities", label: "能力配置", icon: Plug },
+  { href: "/gateway", label: "API 网关", icon: Plug },
   { href: "/api-access", label: "API 访问", icon: Code2 },
   { href: "/platform-config", label: "平台配置", icon: Settings },
   { href: "/usage", label: "用量统计", icon: BarChart3 },
@@ -60,3 +61,4 @@ export function Sidebar() {
     </aside>
   );
 }
+

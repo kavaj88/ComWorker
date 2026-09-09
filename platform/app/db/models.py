@@ -20,6 +20,59 @@ class Base(DeclarativeBase):
     pass
 
 
+class GatewayToken(Base):
+    """独立模型访问令牌，完整密钥仅在创建时返回。"""
+
+    __tablename__ = "gateway_tokens"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
+    name: Mapped[str] = mapped_column(String(128))
+    user_id: Mapped[str] = mapped_column(String(36), index=True)
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True, index=True)
+    token_hint: Mapped[str] = mapped_column(String(32))
+    allowed_models: Mapped[list] = mapped_column(JSON, default=list)
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    last_used_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+    retain_content: Mapped[bool] = mapped_column(Boolean, default=False)
+    retention_days: Mapped[int] = mapped_column(Integer, default=7)
+
+
+class GatewayRoute(Base):
+    """独立接口能力声明，不改变云端 Agent 现有配置。"""
+
+    __tablename__ = "gateway_routes"
+    provider_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    protocols: Mapped[list] = mapped_column(JSON, default=list)
+
+
+class GatewayRequest(Base):
+    """请求元数据及有限、可过期的正文留存。"""
+
+    __tablename__ = "gateway_requests"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    token_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
+    user_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
+    model: Mapped[str | None] = mapped_column(String(256), nullable=True, index=True)
+    provider_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    upstream_model: Mapped[str | None] = mapped_column(String(256), nullable=True)
+    protocol: Mapped[str] = mapped_column(String(32))
+    status_code: Mapped[int] = mapped_column(Integer)
+    outcome: Mapped[str] = mapped_column(String(32), index=True)
+    started_at: Mapped[datetime] = mapped_column(DateTime, index=True)
+    duration_ms: Mapped[int] = mapped_column(Integer)
+    first_byte_ms: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    input_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    output_tokens: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    usage: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    error_type: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    content_state: Mapped[str] = mapped_column(String(16), default="disabled")
+    content_expires_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True, index=True)
+    request_content: Mapped[str | None] = mapped_column(Text, nullable=True)
+    response_content: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+
 class User(Base):
     """Platform user account."""
 
