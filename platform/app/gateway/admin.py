@@ -114,6 +114,16 @@ async def tokens(db: AsyncSession = Depends(get_db)):
     return {"items": [token_json(t, name) for t, name in rows]}
 
 
+@router.get("/tokens/{token_id}")
+async def read_token(token_id: str, db: AsyncSession = Depends(get_db)):
+    token = await get_token(db, token_id)
+    user = await db.get(User, token.user_id)
+    return {
+        **token_json(token, user.username if user else None),
+        "secret": token.token_secret,
+    }
+
+
 @router.post("/tokens")
 async def create_token(
     body: TokenCreate, db: AsyncSession = Depends(get_db), admin: User = Depends(require_admin)
@@ -122,7 +132,10 @@ async def create_token(
     user = await validate_token(db, body.user_id, values)
     secret = "cw_" + secrets.token_urlsafe(32)
     token = GatewayToken(
-        **values, token_hash=secret_hash(secret), token_hint=secret[:7] + "…" + secret[-4:]
+        **values,
+        token_hash=secret_hash(secret),
+        token_hint=secret[:7] + "…" + secret[-4:],
+        token_secret=secret,
     )
     db.add(token)
     await db.flush()

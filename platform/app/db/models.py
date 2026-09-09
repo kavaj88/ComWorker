@@ -21,7 +21,7 @@ class Base(DeclarativeBase):
 
 
 class GatewayToken(Base):
-    """独立模型访问令牌，完整密钥仅在创建时返回。"""
+    """独立模型访问令牌；完整明文按产品约定持久化于 token_secret，可在管理端查阅。"""
 
     __tablename__ = "gateway_tokens"
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: str(uuid.uuid4()))
@@ -29,6 +29,9 @@ class GatewayToken(Base):
     user_id: Mapped[str] = mapped_column(String(36), index=True)
     token_hash: Mapped[str] = mapped_column(String(64), unique=True, index=True)
     token_hint: Mapped[str] = mapped_column(String(32))
+    # 完整明文令牌：按产品约定以明文持久化，便于管理员事后在「小眼睛」中查阅/复制。
+    # 鉴权仍只使用 token_hash；本字段不出现在列表接口，仅单条查询时返回。
+    token_secret: Mapped[str | None] = mapped_column(String(512), nullable=True)
     allowed_models: Mapped[list] = mapped_column(JSON, default=list)
     enabled: Mapped[bool] = mapped_column(Boolean, default=True)
     expires_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)

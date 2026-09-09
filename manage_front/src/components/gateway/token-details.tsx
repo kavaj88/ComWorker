@@ -6,12 +6,14 @@ import {
   GatewayOptions,
   GatewayRoute,
   GatewayToken,
+  getTokenSecret,
   protocols,
   formatTime,
 } from "@/lib/gateway-api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
+import { Copy, Eye, EyeOff } from "lucide-react";
 
 export function TokenDetails({
   token,
@@ -27,6 +29,36 @@ export function TokenDetails({
       process.env.NEXT_PUBLIC_API_URL ||
       (typeof window !== "undefined" ? window.location.origin : ""),
   );
+  const [secret, setSecret] = useState<string | null | undefined>(undefined);
+  const [secretLoading, setSecretLoading] = useState(false);
+  async function revealSecret() {
+    if (secret !== undefined) {
+      setSecret(undefined);
+      return;
+    }
+    setSecretLoading(true);
+    try {
+      const value = await getTokenSecret(token.id);
+      setSecret(value);
+      if (value === null) {
+        toast.error(
+          "该令牌创建于「可查看明文」功能上线前，无明文记录；请吊销后重新创建。",
+        );
+      }
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setSecretLoading(false);
+    }
+  }
+  async function copySecret(value: string) {
+    try {
+      await navigator.clipboard.writeText(value);
+      toast.success("令牌已复制");
+    } catch {
+      toast.error("复制失败，请手动选中复制");
+    }
+  }
   const modelOptions = options.models.filter((m) =>
     token.allowed_models.includes(m.id),
   );
@@ -53,7 +85,34 @@ export function TokenDetails({
           </div>
           <div>
             <dt className="text-gray-500">令牌标识</dt>
-            <dd>{token.token_hint}</dd>
+            <dd className="flex items-center gap-2">
+              <span className="break-all font-mono text-xs">
+                {secret === undefined ? token.token_hint : secret === null ? "无明文记录" : secret}
+              </span>
+              <button
+                type="button"
+                title={secret !== undefined ? "隐藏完整令牌" : "显示完整令牌"}
+                className="rounded p-1 text-gray-400 hover:bg-slate-100 hover:text-slate-700"
+                disabled={secretLoading}
+                onClick={revealSecret}
+              >
+                {secret !== undefined ? (
+                  <EyeOff className="h-3.5 w-3.5" />
+                ) : (
+                  <Eye className="h-3.5 w-3.5" />
+                )}
+              </button>
+              {secret && (
+                <button
+                  type="button"
+                  title="复制令牌"
+                  className="rounded p-1 text-gray-400 hover:bg-slate-100 hover:text-slate-700"
+                  onClick={() => copySecret(secret)}
+                >
+                  <Copy className="h-3.5 w-3.5" />
+                </button>
+              )}
+            </dd>
           </div>
           <div>
             <dt className="text-gray-500">有效期</dt>
@@ -134,8 +193,10 @@ export function SecretDialog({
   return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="sm:max-w-xl">
-        <DialogTitle>令牌已创建 · 仅显示一次</DialogTitle>
-        <p>请立即复制并妥善保存。关闭后无法再次查看完整令牌。</p>
+        <DialogTitle>令牌已创建</DialogTitle>
+        <p>
+          请立即复制并妥善保存。如需稍后查看，可在令牌列表中点击小眼睛重新显示。
+        </p>
         <pre className="select-all whitespace-pre-wrap break-all rounded-lg bg-gray-100 p-4">
           {secret}
         </pre>

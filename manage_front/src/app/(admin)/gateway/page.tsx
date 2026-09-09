@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { KeyRound, Plus, RefreshCw } from "lucide-react";
+import { Copy, Eye, EyeOff, KeyRound, Plus, RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,6 +11,7 @@ import {
   GatewayRoute,
   GatewayToken,
   formatTime,
+  getTokenSecret,
 } from "@/lib/gateway-api";
 import { TokenEditor, selectClass } from "@/components/gateway/token-editor";
 import {
@@ -42,6 +43,8 @@ export default function GatewayPage() {
   const [details, setDetails] = useState<GatewayToken | null>(null);
   const [secret, setSecret] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
+  const [revealed, setRevealed] = useState<Record<string, string>>({});
+  const [revealLoading, setRevealLoading] = useState<string | null>(null);
   const reload = useCallback(async () => {
     setLoading(true);
     setError("");
@@ -100,6 +103,42 @@ export default function GatewayPage() {
       (!userFilter || t.user_id === userFilter) &&
       (!statusFilter || tokenStatus(t) === statusFilter),
   );
+
+  async function toggleReveal(token: GatewayToken) {
+    if (revealed[token.id] !== undefined) {
+      setRevealed((m) => {
+        const n = { ...m };
+        delete n[token.id];
+        return n;
+      });
+      return;
+    }
+    setRevealLoading(token.id);
+    try {
+      const value = await getTokenSecret(token.id);
+      if (value) {
+        setRevealed((m) => ({ ...m, [token.id]: value }));
+      } else {
+        toast.error(
+          "该令牌创建于「可查看明文」功能上线前，无明文记录；请吊销后重新创建。",
+        );
+      }
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setRevealLoading(null);
+    }
+  }
+
+  async function copySecret(value: string) {
+    try {
+      await navigator.clipboard.writeText(value);
+      toast.success("令牌已复制");
+    } catch {
+      toast.error("复制失败，请手动选中复制");
+    }
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
@@ -234,8 +273,33 @@ export default function GatewayPage() {
                           >
                             {token.name}
                           </button>
-                          <p className="mt-1 font-mono text-xs text-gray-400">
-                            {token.token_hint}
+                          <p className="mt-1 flex items-center gap-1 font-mono text-xs text-gray-400">
+                            <span className="break-all">
+                              {revealed[token.id] ?? token.token_hint}
+                            </span>
+                            <button
+                              type="button"
+                              title={revealed[token.id] ? "隐藏完整令牌" : "显示完整令牌"}
+                              className="rounded p-1 text-gray-400 hover:bg-slate-100 hover:text-slate-700"
+                              disabled={revealLoading === token.id}
+                              onClick={() => toggleReveal(token)}
+                            >
+                              {revealed[token.id] ? (
+                                <EyeOff className="h-3.5 w-3.5" />
+                              ) : (
+                                <Eye className="h-3.5 w-3.5" />
+                              )}
+                            </button>
+                            {revealed[token.id] && (
+                              <button
+                                type="button"
+                                title="复制令牌"
+                                className="rounded p-1 text-gray-400 hover:bg-slate-100 hover:text-slate-700"
+                                onClick={() => copySecret(revealed[token.id])}
+                              >
+                                <Copy className="h-3.5 w-3.5" />
+                              </button>
+                            )}
                           </p>
                         </td>
                         <td className="p-3">

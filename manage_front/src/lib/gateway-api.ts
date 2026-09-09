@@ -14,6 +14,8 @@ export interface GatewayToken {
   last_used_at: string | null;
   retain_content: boolean;
   retention_days: number;
+  /** 完整明文令牌（仅单条查询返回；旧令牌可能为 null） */
+  secret?: string | null;
 }
 export interface GatewayOptions {
   users: { id: string; username: string }[];
@@ -86,5 +88,13 @@ export const gateway = <T>(path: string, method = "GET", body?: unknown) =>
     method,
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
   });
+
+/** 获取令牌完整明文（管理员可见）。旧令牌可能返回 null。 */
+export async function getTokenSecret(id: string): Promise<string | null> {
+  const data = await gateway<{ secret: string | null }>(
+    `/tokens/${encodeURIComponent(id)}`,
+  );
+  return data.secret;
+}
 export const formatTime = (value: string | null) =>
   value ? new Date(value).toLocaleString("zh-CN") : "—";
