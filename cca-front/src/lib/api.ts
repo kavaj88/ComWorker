@@ -1588,11 +1588,41 @@ export interface ChannelsStatusResult {
   channels: Record<string, unknown>
   channelAccounts: Record<string, ChannelAccountSnapshot[]>
   channelDefaultAccountId: Record<string, string>
+  home_channel?: string
+}
+
+export interface WeixinConversation {
+  chat_id: string
+  name: string
+  type: string
+}
+
+export interface WeixinConversationsResult {
+  conversations: WeixinConversation[]
+  home_channel: string
+  home_channel_name: string
 }
 
 export async function getChannelsStatus(probe = false): Promise<ChannelsStatusResult> {
   const params = probe ? '?probe=true' : ''
   return fetchJSON<ChannelsStatusResult>(`/api/comworker/channels/status${params}`)
+}
+
+export async function getWeixinConversations(): Promise<WeixinConversationsResult> {
+  return fetchJSON<WeixinConversationsResult>('/api/comworker/channels/weixin/conversations')
+}
+
+export async function setWeixinHomeChannel(
+  chatId: string,
+  name: string
+): Promise<{ ok: boolean; detail?: string; chat_id?: string }> {
+  return fetchJSON<{ ok: boolean; detail?: string; chat_id?: string }>(
+    '/api/comworker/channels/weixin/home',
+    {
+      method: 'POST',
+      body: JSON.stringify({ chat_id: chatId, name }),
+    }
+  )
 }
 
 export async function getConfiguredChannels(): Promise<{ success: boolean; channels: string[] }> {

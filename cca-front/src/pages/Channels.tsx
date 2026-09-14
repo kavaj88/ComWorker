@@ -10,10 +10,13 @@ import {
   CheckCircle,
   Smartphone,
   PlugZap,
+  Home,
 } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import type {
   ChannelsStatusResult,
+  WeixinConversation,
+  WeixinConversationsResult,
 } from '../lib/api'
 import {
   getChannelsStatus,
@@ -21,6 +24,8 @@ import {
   getChannelConfig,
   saveChannelConfig,
   deleteChannelConfig,
+  getWeixinConversations,
+  setWeixinHomeChannel,
   getAccessToken,
 } from '../lib/api'
 
@@ -385,6 +390,9 @@ export default function Channels() {
   // Show restart hint after saving channel config
   const [showRestartHint, setShowRestartHint] = useState(false)
   const [weixinBindOpen, setWeixinBindOpen] = useState(false)
+  const [weixinHome, setWeixinHome] = useState<WeixinConversationsResult | null>(null)
+  const [weixinHomeLoading, setWeixinHomeLoading] = useState(false)
+  const [settingHomeChatId, setSettingHomeChatId] = useState<string | null>(null)
   const navigate = useNavigate()
 
   const fetchStatus = useCallback(async (showLoader = false) => {
@@ -414,6 +422,42 @@ export default function Channels() {
   const handleRefresh = () => {
     setRefreshing(true)
     fetchStatus()
+  }
+
+  const fetchWeixinHome = useCallback(async () => {
+    setWeixinHomeLoading(true)
+    try {
+      const data = await getWeixinConversations()
+      setWeixinHome(data)
+    } catch {
+      setWeixinHome({ conversations: [], home_channel: '', home_channel_name: '' })
+    } finally {
+      setWeixinHomeLoading(false)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (configuredTypes.includes(WEIXIN_CHANNEL_ID)) {
+      void fetchWeixinHome()
+    } else {
+      setWeixinHome(null)
+    }
+  }, [configuredTypes, fetchWeixinHome])
+
+  const handleSetWeixinHome = async (chatId: string, name: string) => {
+    setSettingHomeChatId(chatId)
+    try {
+      const res = await setWeixinHomeChannel(chatId, name)
+      if (!res.ok) {
+        setError(res.detail || '设置主频道失败')
+        return
+      }
+      await fetchWeixinHome()
+    } catch (err: any) {
+      setError(err?.message || '设置主频道失败')
+    } finally {
+      setSettingHomeChatId(null)
+    }
   }
 
   const openConfig = async (channelType: string) => {
@@ -559,6 +603,76 @@ export default function Channels() {
           ))}
         </div>
       </div>
+
+      {/* Weixin home channel */}
+      {configuredTypes.includes(WEIXIN_CHANNEL_ID) && (
+        <div className="mb-8">
+          <h2 className="mb-3 flex items-center gap-1.5 text-sm font-semibold uppercase tracking-wider text-light-text-secondary">
+            <Home size={14} />
+            微信主频道
+          </h2>
+          <div className="rounded-xl border border-light-border bg-white p-4">
+            <p className="mb-3 text-xs text-light-text-secondary">
+              主频道用于接收定时任务结果和跨平台消息。选择一个会话设为主频道后，微信端不再提示「设置主频道」。
+            </p>
+            {weixinHomeLoading ? (
+              <div className="flex items-center gap-2 text-sm text-light-text-secondary">
+                <Loader2 size={14} className="animate-spin" />
+                加载会话中…
+              </div>
+            ) : weixinHome && weixinHome.conversations.length > 0 ? (
+              <div className="flex flex-col gap-2">
+                {weixinHome.conversations.map((c: WeixinConversation) => {
+                  const isHome = c.chat_id === weixinHome.home_channel
+                  return (
+                    <div
+                      key={c.chat_id}
+                      className="flex items-center justify-between rounded-lg border border-light-border px-3 py-2"
+                    >
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="truncate text-sm text-light-text">{c.name || c.chat_id}</span>
+                          {c.type === 'group' && (
+                            <span className="rounded bg-light-card px-1.5 py-0.5 text-[10px] text-light-text-secondary">
+                              群
+                            </span>
+                          )}
+                          {isHome && (
+                            <span className="inline-flex items-center gap-1 rounded bg-accent-green/10 px-1.5 py-0.5 text-[10px] text-accent-green">
+                              <CheckCircle size={10} />
+                              当前主频道
+                            </span>
+                          )}
+                        </div>
+                        <div className="truncate text-[11px] text-light-text-secondary">{c.chat_id}</div>
+                      </div>
+                      {isHome ? (
+                        <span className="text-xs text-accent-green">已设置</span>
+                      ) : (
+                        <button
+                          onClick={() => handleSetWeixinHome(c.chat_id, c.name)}
+                          disabled={settingHomeChatId === c.chat_id}
+                          className="rounded-lg border border-light-border px-3 py-1 text-xs text-light-text-secondary hover:text-light-text transition-colors disabled:opacity-50"
+                        >
+                          {settingHomeChatId === c.chat_id ? (
+                            <Loader2 size={12} className="animate-spin" />
+                          ) : (
+                            '设为主频道'
+                          )}
+                        </button>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            ) : (
+              <p className="text-sm text-light-text-secondary">
+                暂无可用的微信会话。请先在微信里给该 bot 发送一条消息，会话才会出现在这里。
+              </p>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Other channels (collapsible) */}
       <div>

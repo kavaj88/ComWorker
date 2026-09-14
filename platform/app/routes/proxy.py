@@ -540,6 +540,145 @@ def _collect_weixin_state_sync(container_name: str) -> dict:
     return out
 
 
+def _read_hermes_dotenv_sync(container_name: str) -> dict:
+    """Read /opt/data/.env (fallback ~/.hermes/.env) from the runtime as a dict."""
+    env: dict[str, str] = {}
+    try:
+        container = get_docker_container(container_name)
+    except Exception:  # noqa: BLE001
+        return env
+    try:
+        res = container.exec_run(
+            [
+                "sh",
+                "-lc",
+                "for f in /opt/data/.env ~/.hermes/.env; do [ -f \"$f\" ] && cat \"$f\"; done 2>/dev/null || true",
+            ],
+            stdout=True,
+            stderr=False,
+        )
+        raw = res.output if hasattr(res, "output") else b""
+        text = raw.decode("utf-8", "replace") if isinstance(raw, (bytes, bytearray)) else ""
+        for line in text.splitlines():
+            line = line.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            key, _, value = line.partition("=")
+            env[key.strip()] = value.strip()
+    except Exception:  # noqa: BLE001
+        pass
+    return env
+
+
+def _collect_weixin_conversations_sync(container_name: str) -> dict:
+    """List addressable Weixin conversations and the current home channel.
+
+    Conversations come from the runtime's ``channel_directory.json``
+    (``/opt/data``); the home channel comes from ``WEIXIN_HOME_CHANNEL`` /
+    ``WEIXIN_HOME_CHANNEL_NAME`` in ``.env``.
+    """
+    out: dict = {"conversations": [], "home_channel": "", "home_channel_name": ""}
+    try:
+        container = get_docker_container(container_name)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("weixin conversations: cannot resolve container %s: %s", container_name, exc)
+        return out
+    env = _read_hermes_dotenv_sync(container_name)
+    out["home_channel"] = env.get("WEIXIN_HOME_CHANNEL", "")
+    out["home_channel_name"] = env.get("WEIXIN_HOME_CHANNEL_NAME", "")
+    try:
+        res = container.exec_run(
+            ["sh", "-lc", "cat /opt/data/channel_directory.json 2>/dev/null || echo ''"],
+            stdout=True,
+            stderr=False,
+        )
+        raw = res.output if hasattr(res, "output") else b""
+        text = raw.decode("utf-8", "replace") if isinstance(raw, (bytes, bytearray)) else ""
+        if text.strip():
+            data = json.loads(text)
+            entries = (data.get("platforms", {}) or {}).get("weixin", []) or []
+            convs: list[dict] = []
+            for e in entries:
+                if isinstance(e, dict):
+                    convs.append(
+                        {
+                            "chat_id": str(e.get("id", "")),
+                            "name": str(e.get("name", "") or e.get("id", "")),
+                            "type": str(e.get("type", "dm") or "dm"),
+                        }
+                    )
+                elif isinstance(e, str):
+                    convs.append({"chat_id": e, "name": e, "type": "dm"})
+            out["conversations"] = convs
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("weixin conversations: read failed for %s: %s", container_name, exc)
+    return out
+
+
+def _set_weixin_home_channel_sync(container_name: str, chat_id: str, name: str) -> dict:
+    """Persist WEIXIN_HOME_CHANNEL(+NAME) into /opt/data/.env — no restart needed.
+
+    为什么不需要重启（无感生效）:
+    - 网关在**每轮对话**都会重读 .env 到 os.environ
+      （``_reload_runtime_env_preserving_config_authority`` →
+      ``load_hermes_dotenv(override=True)``）。
+    - 微信渠道的 home 解析三处全部直接读 ``os.getenv("WEIXIN_HOME_CHANNEL")``:
+      新会话引导(run.py)、主动消息(send_message_tool.py 的 weixin 专属兜底)、
+      cron 定时(scheduler.py)。因此写入 .env 后，下一次对话/定时触发即生效，
+      过程对终端用户完全无感，没有停机、不会丢弃在途消息。
+    - 平台重建容器时会按 ``_CHANNEL_ENV_PREFIXES`` 保留 ``WEIXIN_*`` 变量，
+      故该值持久、不会被覆盖。
+    """
+    chat_id = (chat_id or "").strip()
+    if not chat_id:
+        return {"ok": False, "detail": "chat_id 不能为空"}
+    try:
+        container = get_docker_container(container_name)
+    except Exception as exc:  # noqa: BLE001
+        return {"ok": False, "detail": f"无法定位容器: {exc}"}
+    safe_name = (name or "").replace("\\", "\\\\").replace('"', '\\"').replace("\n", " ")
+    script = (
+        "import os\n"
+        "p='/opt/data/.env'\n"
+        "lines=open(p, encoding='utf-8').read().splitlines() if os.path.exists(p) else []\n"
+        "def setk(lines,k,v):\n"
+        "    target=f'{k}={v}'\n"
+        "    for i,l in enumerate(lines):\n"
+        "        s=l.strip()\n"
+        "        if s==k+'=' or s.startswith(k+'=') or s.startswith('#'+k+'='):\n"
+        "            lines[i]=target; return lines\n"
+        "    lines.append(target); return lines\n"
+        f"lines=setk(lines,'WEIXIN_HOME_CHANNEL',{chat_id!r})\n"
+        f"lines=setk(lines,'WEIXIN_HOME_CHANNEL_NAME',{safe_name!r})\n"
+        "open(p,'w',encoding='utf-8').write('\\n'.join(lines)+'\\n')\n"
+        "print('OK')\n"
+    )
+    try:
+        res = container.exec_run(["python3", "-c", script], user="root")
+    except Exception as exc:  # noqa: BLE001
+        return {"ok": False, "detail": f"写入 .env 失败: {exc}"}
+    if getattr(res, "exit_code", 1) != 0:
+        detail = res.output.decode("utf-8", "replace")[:300] if hasattr(res, "output") else "未知错误"
+        return {"ok": False, "detail": f"写入 .env 失败: {detail}"}
+    return {"ok": True, "chat_id": chat_id, "effective": "next_turn_no_restart"}
+
+
+async def _hermes_weixin_conversations(user: User) -> JSONResponse:
+    container_name = f"{settings.dedicated_runtime_container_name_prefix}-{user.id[:8]}"
+    data = await asyncio.to_thread(_collect_weixin_conversations_sync, container_name)
+    return JSONResponse(data)
+
+
+async def _hermes_weixin_set_home(user: User, payload: dict) -> JSONResponse:
+    container_name = f"{settings.dedicated_runtime_container_name_prefix}-{user.id[:8]}"
+    chat_id = payload.get("chat_id", "") if isinstance(payload, dict) else ""
+    name = payload.get("name", "") if isinstance(payload, dict) else ""
+    result = await asyncio.to_thread(_set_weixin_home_channel_sync, container_name, chat_id, name)
+    if result.get("ok"):
+        return JSONResponse(result)
+    return JSONResponse(status_code=400, content=result)
+
+
 async def _hermes_channels_status(user: User) -> JSONResponse:
     container_name = f"{settings.dedicated_runtime_container_name_prefix}-{user.id[:8]}"
     state = await asyncio.to_thread(_collect_weixin_state_sync, container_name)
@@ -579,6 +718,7 @@ async def _hermes_channels_status(user: User) -> JSONResponse:
             "channelAccounts": channel_accounts,
             "channelDefaultAccountId": {"weixin": state["account_id"]} if state["configured"] else {},
             "configuredTypes": configured_types,
+            "home_channel": state["home_channel"],
             "runtime": "hermes",
         }
     )
@@ -918,6 +1058,14 @@ async def proxy_http(
             return await _hermes_channels_status(user)
         if path == "channels/configured" and request.method == "GET":
             return await _hermes_channels_configured(user)
+        if path == "channels/weixin/conversations" and request.method == "GET":
+            return await _hermes_weixin_conversations(user)
+        if path == "channels/weixin/home" and request.method == "POST":
+            try:
+                payload = await request.json()
+            except Exception:
+                payload = {}
+            return await _hermes_weixin_set_home(user, payload or {})
         empty_compat = _hermes_empty_compat(path, request)
         if empty_compat is not None:
             return empty_compat
