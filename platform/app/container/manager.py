@@ -11,6 +11,7 @@ import secrets
 import socket
 import tarfile
 import time
+from pathlib import Path
 
 import docker
 import yaml
@@ -20,7 +21,13 @@ from sqlalchemy import select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.capabilities import CapabilityPlan, build_capability_plan, capability_by_env_key, parse_hermes_api_toolsets
+from app.capabilities import (
+    CapabilityPlan,
+    build_capability_plan,
+    capability_by_env_key,
+    load_capability_definitions,
+    parse_hermes_api_toolsets,
+)
 from app.config import settings
 from app.db.models import (
     Container,
@@ -316,6 +323,14 @@ def _build_hermes_config_yaml(plan: CapabilityPlan | None = None) -> str:
             # this OFF on recognized messaging platforms — we pin it explicitly).
             "verify_on_stop": False,
         },
+        # Hermes cron defaults to wrapping delivered output with an English
+        # header/footer ("Cronjob Response: ...", job_id, "To stop or manage...").
+        # This is noisy and bilingual in Chinese IM channels (e.g. WeChat), so
+        # disable it globally. Each user's container will only receive the raw
+        # agent output (e.g. the reminder text itself).
+        "cron": {
+            "wrap_response": False,
+        },
     }
     config.update(plan.config_overrides)
     return yaml.safe_dump(config, allow_unicode=True, sort_keys=False)
@@ -463,7 +478,9 @@ def _read_existing_hermes_env_channel_vars(container: docker.models.containers.C
     return preserved
 
 
-def _read_existing_capability_keys(container: docker.models.containers.Container) -> dict[str, str]:
+def _read_existing_capability_keys(
+    container: docker.models.containers.Container, defs: dict | None = None
+) -> dict[str, str]:
     """Read user-provided capability keys from the existing container ``.env``.
 
     Returns a *capability-keyed* dict (e.g. ``{"web_search": "tvly-..."}``) so
@@ -471,9 +488,11 @@ def _read_existing_capability_keys(container: docker.models.containers.Container
     lets a user-set key satisfy conditional mounting even when no platform pool
     key is configured, and keeps the user's key instead of the platform key on
     hot-patch. Only known capability env keys are captured; unrelated vars are
-    ignored (they are not capability-managed).
+    ignored (they are not capability-managed). When ``defs`` is provided it is
+    used to resolve the env-key→capability map (DB-backed); otherwise the legacy
+    registry is used.
     """
-    env_to_cap = capability_by_env_key()
+    env_to_cap = capability_by_env_key(defs)
     if not env_to_cap:
         return {}
     try:
@@ -838,6 +857,60 @@ async def _capture_user_config_to_db(db, user_id: str, existing_config: dict) ->
     await db.commit()
 
 
+# Platform-managed reasoning-language guidance injected into every hermes
+# container's /opt/data/SOUL.md (the HERMES_HOME identity slot that hermes reads
+# via load_soul_md). This is the upgrade-safe channel for forcing Chinese
+# thinking: it lives in platform code (not hermes source), so overwriting
+# hermes-agent/ with upstream never loses it. Append-only (marker-guarded) so a
+# user who edits their soul keeps their changes.
+_HERMES_SOUL_LANG_SECTION = (
+    "\n\n## 语言偏好\n\n"
+    "默认使用中文进行思考（reasoning）和回复。除非用户明确要求使用其他语言，"
+    "否则推理过程与最终回答都使用中文表达。\n"
+)
+_HERMES_SOUL_LANG_MARKER = "## 语言偏好"
+
+
+def _read_existing_hermes_soul(container: docker.models.containers.Container) -> str:
+    """Read existing /opt/data/SOUL.md from the hermes data volume, '' if absent."""
+    try:
+        result = container.exec_run(["cat", "/opt/data/SOUL.md"], user="root")
+        if getattr(result, "exit_code", 1) == 0 and result.output:
+            return result.output.decode("utf-8", errors="replace")
+    except Exception:
+        pass
+    return ""
+
+
+def _canonical_main_soul() -> str:
+    """Canonical platform soul for the main agent (deploy_copy source)."""
+    try:
+        p = Path("/app/deploy_copy/Agents/main/SOUL.md")
+        if p.is_file():
+            return p.read_text(encoding="utf-8")
+    except Exception:
+        pass
+    return ""
+
+
+def _build_hermes_soul_md(container: docker.models.containers.Container) -> bytes | None:
+    """Return SOUL.md bytes to write, or None if guidance already present.
+
+    Appends the reasoning-language guidance to the existing soul (preserving any
+    user edits). For a fresh volume without a soul, falls back to the canonical
+    platform main soul so the container still boots with an identity.
+    """
+    existing = _read_existing_hermes_soul(container)
+    if _HERMES_SOUL_LANG_MARKER in existing:
+        return None
+    if existing.strip():
+        merged = existing.rstrip() + _HERMES_SOUL_LANG_SECTION
+    else:
+        canonical = _canonical_main_soul()
+        merged = (canonical.rstrip() if canonical else "") + _HERMES_SOUL_LANG_SECTION
+    return merged.encode("utf-8")
+
+
 def _write_hermes_runtime_files(
     container: docker.models.containers.Container,
     plan: CapabilityPlan | None = None,
@@ -910,6 +983,10 @@ def _write_hermes_runtime_files(
         _read_existing_hermes_env_channel_vars(container),
         plan,
     ).encode("utf-8")
+    # Inject platform-managed reasoning-language guidance into the hermes soul
+    # (HERMES_HOME/SOUL.md). Append-only: None when the marker is already present.
+    soul_content = _build_hermes_soul_md(container)
+
     tar_buffer = io.BytesIO()
     with tarfile.open(fileobj=tar_buffer, mode="w") as tar:
         config_file = tarfile.TarInfo(name="config.yaml")
@@ -923,6 +1000,13 @@ def _write_hermes_runtime_files(
         env_file.mode = 0o600
         env_file.mtime = int(time.time())
         tar.addfile(env_file, io.BytesIO(env_content))
+
+        if soul_content is not None:
+            soul_file = tarfile.TarInfo(name="SOUL.md")
+            soul_file.size = len(soul_content)
+            soul_file.mode = 0o644
+            soul_file.mtime = int(time.time())
+            tar.addfile(soul_file, io.BytesIO(soul_content))
 
     tar_buffer.seek(0)
     ok = container.put_archive("/opt/data", tar_buffer.read())
@@ -1108,10 +1192,12 @@ async def create_container(
     platform_defaults = {row.capability: row for row in pd_result.scalars().all()}
     uc_result = await db.execute(select(UserCapability).where(UserCapability.user_id == user_id))
     user_caps = {row.capability: row for row in uc_result.scalars().all()}
+    capability_defs = await load_capability_definitions(db) or None
     container_plan = build_capability_plan(
         settings,
         user_caps=user_caps,
         platform_defaults=platform_defaults,
+        defs=capability_defs,
     )
 
     container_env = _runtime_environment(container_token, sso_token, container_plan)
@@ -1439,8 +1525,12 @@ async def apply_container_capabilities(db: AsyncSession, user_id: str) -> dict:
     Recomputes the user's capability plan from DB grants/defaults, reads any
     user-provided capability key from the existing container ``.env`` (so it
     satisfies conditional mounting and is not overwritten by the platform pool
-    key), rewrites ``.env``/``config.yaml`` via ``_write_hermes_runtime_files``,
-    then restarts the container so the new config takes effect.
+    key), rewrites ``.env``/``config.yaml`` via ``_write_hermes_runtime_files``.
+
+    No container restart is performed. The hermes api_server runtime re-reads
+    ``config.yaml`` (``platform_toolsets.api_server``) and ``.env`` on every
+    chat request, so the capability change takes effect seamlessly on the next
+    request without disrupting the user's running session.
 
     Requires a *running* container: the preserve logic reads existing files via
     ``exec_run``, which only works while the container is running. Applying to a
@@ -1473,13 +1563,15 @@ async def apply_container_capabilities(db: AsyncSession, user_id: str) -> dict:
 
     # User-provided keys live inside the container; read them so they satisfy
     # conditional mounting and survive the rewrite (user key > platform key).
-    user_keys = _read_existing_capability_keys(docker_container)
+    capability_defs = await load_capability_definitions(db) or None
+    user_keys = _read_existing_capability_keys(docker_container, defs=capability_defs)
 
     plan = build_capability_plan(
         settings,
         user_caps=user_caps,
         platform_defaults=platform_defaults,
         user_keys=user_keys,
+        defs=capability_defs,
     )
 
     user_config = await _load_user_config(db, user_id)
@@ -1489,5 +1581,7 @@ async def apply_container_capabilities(db: AsyncSession, user_id: str) -> dict:
     )
     if user_id:
         await _capture_user_config_to_db(db, user_id, existing)
-    docker_container.restart()
+    # No restart: the hermes api_server runtime re-reads config.yaml/.env per
+    # chat request, so the capability change is picked up on the next request
+    # without dropping the user's in-flight session.
     return {"applied": True, "toolsets": plan.enabled_toolsets}
