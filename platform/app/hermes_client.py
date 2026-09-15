@@ -175,7 +175,12 @@ class HermesClient:
                         if parsed is not None:
                             events.append(parsed)
                             if on_event is not None:
-                                on_event(parsed)
+                                # 兼容同步与异步回调：wait_run 用同步
+                                # timing.record；协议网关用 async on_event
+                                # （内部 await 队列/审批）。不 await 会被丢弃。
+                                cb = on_event(parsed)
+                                if asyncio.iscoroutine(cb):
+                                    await cb
         except httpx.ConnectError as exc:
             raise HTTPException(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,

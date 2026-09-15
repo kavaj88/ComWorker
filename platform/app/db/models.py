@@ -40,6 +40,9 @@ class GatewayToken(Base):
     last_used_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     retain_content: Mapped[bool] = mapped_column(Boolean, default=False)
     retention_days: Mapped[int] = mapped_column(Integer, default=7)
+    # Agent 协议网关（/api/agent/v1/*）专用：可用 Agent 白名单与协议约束，与模型网关的 allowed_models 相互独立。
+    allowed_agents: Mapped[list | None] = mapped_column(JSON, default=list, nullable=True)
+    allowed_protocols: Mapped[list | None] = mapped_column(JSON, default=list, nullable=True)
 
 
 class GatewayRoute(Base):
@@ -174,6 +177,44 @@ class PlatformCapabilityDefault(Base):
         server_default=func.now(),
         onupdate=func.now(),
     )
+
+
+class CapabilityDefinition(Base):
+    """Admin-managed capability definition (e.g. web_search, browser, image_gen).
+
+    Replaces the previously hardcoded ``_CAPABILITIES`` registry in
+    ``app/capabilities.py``. Each capability maps to container toolsets, an
+    env-var key (``env_key``), a platform pool-key source (``platform_key_attr``,
+    e.g. ``tavily_api_key`` on global ``settings``), and a config.yaml section
+    (``config``). ``kind`` distinguishes external toolsets (``toolset``, which
+    need a key/url) from model-native features (``model``, e.g. image
+    generation, no external key). ``builtin`` rows are seeded from code and
+    soft-deleted (``enabled=False``); custom rows created by admins may be
+    hard-deleted.
+    """
+
+    __tablename__ = "capability_definitions"
+
+    key: Mapped[str] = mapped_column(String(32), primary_key=True)
+    label: Mapped[str] = mapped_column(String(64), nullable=False)
+    kind: Mapped[str] = mapped_column(String(16), nullable=False, default="toolset")
+    category: Mapped[str] = mapped_column(String(32), nullable=False, default="未分类")
+    description: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    toolsets: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
+    env_key: Mapped[str] = mapped_column(String(64), nullable=False, default="")
+    platform_key_attr: Mapped[str] = mapped_column(String(64), nullable=False, default="")
+    # Admin-managed platform key value (e.g. a Tavily API key). Seeded empty;
+    # when set, it is injected into user containers on push/apply instead of
+    # reading from `settings.<platform_key_attr>`. Never returned in plaintext
+    # by list endpoints.
+    platform_key_value: Mapped[str] = mapped_column(Text, nullable=True, default="")
+    config: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
+    requires_key: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    placeholder: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    builtin: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now(), onupdate=func.now())
 
 
 class UsageRecord(Base):

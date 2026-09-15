@@ -11,6 +11,7 @@ import type {
   Capability,
   CapabilityDefault,
   CapabilityState,
+  CapabilityUserState,
   UserModelsResponse,
   DataFootprint,
   DataIntegrity,
@@ -459,6 +460,94 @@ export async function bulkApplyCapabilities(target: {
     method: "POST",
     body: JSON.stringify({ target }),
   });
+}
+
+// ─── Capability definitions (admin-managed registry entries) ──────────────────
+// These map 1:1 to the backend `capability_definitions` table and let admins
+// add / edit / delete capability entries (each with its own key + url/config),
+// push them to users, and manage them per-user — mirroring the skill workflow.
+
+export interface CapabilityCreateBody {
+  key: string;
+  label: string;
+  kind?: "toolset" | "model";
+  category?: string;
+  description?: string;
+  toolsets?: string[];
+  env_key?: string;
+  platform_key_value?: string | null; // admin-managed platform key (e.g. Tavily)
+  config?: Record<string, unknown>;
+  requires_key?: boolean;
+  placeholder?: boolean;
+}
+
+export type CapabilityUpdateBody = Partial<{
+  label: string | null;
+  kind: "toolset" | "model";
+  category: string | null;
+  description: string | null;
+  toolsets: string[];
+  env_key: string;
+  // null => keep existing; "" => clear; non-empty => set. Never sent back.
+  platform_key_value: string | null;
+  config: Record<string, unknown>;
+  requires_key: boolean;
+  placeholder: boolean;
+}>;
+
+export async function listCapabilities(): Promise<{ capabilities: Capability[] }> {
+  return request<{ capabilities: Capability[] }>("/api/admin/capabilities");
+}
+
+export async function createCapability(body: CapabilityCreateBody): Promise<{ ok: boolean; capability: string }> {
+  return request<{ ok: boolean; capability: string }>("/api/admin/capabilities", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+export async function updateCapability(
+  key: string,
+  body: CapabilityUpdateBody,
+): Promise<{ ok: boolean }> {
+  return request<{ ok: boolean }>(`/api/admin/capabilities/${encodeURIComponent(key)}`, {
+    method: "PUT",
+    body: JSON.stringify(body),
+  });
+}
+
+export async function deleteCapability(key: string): Promise<{ ok: boolean }> {
+  return request<{ ok: boolean }>(`/api/admin/capabilities/${encodeURIComponent(key)}`, {
+    method: "DELETE",
+  });
+}
+
+type CapabilityPushResult = {
+  ok: boolean;
+  name: string;
+  total: number;
+  pushed: number;
+  applied: number;
+  skipped: { user_id: string; reason: string }[];
+  failed: { user_id: string; error: string }[];
+};
+
+export async function pushCapabilityToUsers(
+  key: string,
+  userIds: string[],
+): Promise<CapabilityPushResult> {
+  return request(`/api/admin/capabilities/${encodeURIComponent(key)}/push-users`, {
+    method: "POST",
+    body: JSON.stringify({ user_ids: userIds }),
+  });
+}
+
+export async function getCapabilityUsers(
+  key: string,
+): Promise<{ users: CapabilityUserState[] }> {
+  return request<{ users: CapabilityUserState[] }>(
+    `/api/admin/capabilities/${encodeURIComponent(key)}/users`,
+  );
 }
 
 // Platform skills (admin)

@@ -245,15 +245,15 @@ export default function GatewayPage() {
                 <table className="w-full text-left text-sm">
                   <thead className="bg-gray-50 text-gray-500">
                     <tr>
-                      {[
-                        "名称 / 标识",
-                        "所属用户",
-                        "授权模型",
-                        "最近使用",
-                        "有效期",
-                        "状态",
-                        "操作",
-                      ].map((label) => (
+                        {[
+                          "名称 / 标识",
+                          "所属用户",
+                          "授权范围",
+                          "最近使用",
+                          "有效期",
+                          "状态",
+                          "操作",
+                        ].map((label) => (
                         <th className="whitespace-nowrap p-3" key={label}>
                           {label}
                         </th>
@@ -307,9 +307,33 @@ export default function GatewayPage() {
                         </td>
                         <td
                           className="p-3"
-                          title={token.allowed_models.join("\n")}
+                          title={[...token.allowed_models, ...token.allowed_agents].join("\n")}
                         >
-                          {token.allowed_models.length} 个模型
+                          <div className="flex flex-wrap gap-1">
+                            {token.allowed_models.length > 0 && (
+                              <span className="whitespace-nowrap rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-600">
+                                {token.allowed_models.length} 模型
+                              </span>
+                            )}
+                            {token.allowed_agents.length > 0 && (
+                              <span className="whitespace-nowrap rounded bg-slate-100 px-1.5 py-0.5 text-xs text-slate-600">
+                                {token.allowed_agents.length} Agent
+                              </span>
+                            )}
+                            {token.allowed_protocols.map((p) => (
+                              <span
+                                key={p}
+                                className="whitespace-nowrap rounded bg-emerald-50 px-1.5 py-0.5 text-xs text-emerald-700"
+                              >
+                                {p}
+                              </span>
+                            ))}
+                            {!token.allowed_models.length &&
+                              !token.allowed_agents.length &&
+                              !token.allowed_protocols.length && (
+                                <span className="text-xs text-gray-400">未授权</span>
+                              )}
+                          </div>
                         </td>
                         <td className="whitespace-nowrap p-3 text-gray-500">
                           {formatTime(token.last_used_at)}

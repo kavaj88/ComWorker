@@ -7,6 +7,8 @@ export interface GatewayToken {
   username: string;
   token_hint: string;
   allowed_models: string[];
+  allowed_agents: string[];
+  allowed_protocols: string[];
   enabled: boolean;
   expires_at: string | null;
   revoked_at: string | null;

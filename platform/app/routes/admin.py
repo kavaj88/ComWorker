@@ -32,7 +32,12 @@ from app.auth.service import (
     get_user_by_username,
     hash_password,
 )
-from app.capabilities import capability_registry, capability_states, known_capabilities
+from app.capabilities import (
+    capability_registry,
+    capability_states,
+    known_capabilities,
+    load_capability_definitions,
+)
 from app.config import settings
 from app.container.manager import (
     _apply_mcp_servers_to_container,
@@ -99,6 +104,7 @@ from app.db.engine import get_db
 from app.db.models import AgentTemplate, McpConnector, UserMcpConnector
 from app.db.models import (
     AuditLog,
+    CapabilityDefinition,
     Container,
     DEFAULT_INSTALL_FLAG,
     ModelProviderConfig,
@@ -1580,8 +1586,12 @@ class CapabilityDefaultsRequest(BaseModel):
     defaults: list[CapabilityDefaultItem]
 
 @router.get("/capabilities/registry")
-async def get_capability_registry(admin_user: User = Depends(require_admin)):
-    return {"capabilities": capability_registry(settings)}
+async def get_capability_registry(
+    db: AsyncSession = Depends(get_db),
+    admin_user: User = Depends(require_admin),
+):
+    defs = await load_capability_definitions(db) or None
+    return {"capabilities": capability_registry(settings, defs=defs)}
 
 @router.get("/capabilities/defaults")
 async def get_capability_defaults(
@@ -1648,7 +1658,8 @@ async def get_user_capabilities(
     user_caps = {r.capability: r for r in uc_rows}
     pd_rows = (await db.execute(select(PlatformCapabilityDefault))).scalars().all()
     platform_defaults = {r.capability: r for r in pd_rows}
-    states = capability_states(settings, user_caps, platform_defaults)
+    defs = await load_capability_definitions(db) or None
+    states = capability_states(settings, user_caps, platform_defaults, defs=defs)
     return {
         "states": states,
         "user_caps": [
@@ -1767,11 +1778,14 @@ async def apply_user_capabilities(
     db: AsyncSession = Depends(get_db),
     admin_user: User = Depends(require_admin),
 ):
-    """Hot-patch a running container's capability config and restart it.
+    """Hot-patch a running container's capability config (no restart).
 
-    Refused (not applied) when the user has no container, the container is gone
-    from Docker, or it is not running — applying to a stopped container would
-    silently lose user-set keys, so it is rejected rather than risking data loss.
+    The hermes api_server runtime re-reads config.yaml/.env per chat request, so
+    writing the new plan into the running container takes effect seamlessly on the
+    next request. Refused (not applied) when the user has no container, the
+    container is gone from Docker, or it is not running — applying to a stopped
+    container would silently lose user-set keys, so it is rejected rather than
+    risking data loss.
     """
     result = await apply_container_capabilities(db, user_id)
     if not result.get("applied"):
@@ -1861,6 +1875,333 @@ async def bulk_apply_capabilities(
         "failed": failed,
         "failed_count": len(failed),
     }
+
+# ---------------------------------------------------------------------------
+# Capability definitions (admin-managed registry entries)
+# ---------------------------------------------------------------------------
+
+_CAP_KEY_RE = re.compile(r"^[A-Za-z][A-Za-z0-9_]*$")
+
+
+class CapabilityCreate(BaseModel):
+    key: str
+    label: str
+    kind: str = "toolset"  # "toolset" (needs key/url) | "model" (native feature)
+    category: str = "未分类"
+    description: str = ""
+    toolsets: list[str] = []
+    env_key: str = ""
+    platform_key_attr: str = ""
+    platform_key_value: str | None = None  # admin-managed platform key (e.g. Tavily)
+    config: dict = {}
+    requires_key: bool = True
+    placeholder: bool = False
+
+
+class CapabilityUpdate(BaseModel):
+    label: str | None = None
+    kind: str | None = None
+    category: str | None = None
+    description: str | None = None
+    toolsets: list[str] | None = None
+    env_key: str | None = None
+    platform_key_attr: str | None = None
+    # None => keep existing; "" => clear; non-empty => set. Never echoed back.
+    platform_key_value: str | None = None
+    config: dict | None = None
+    requires_key: bool | None = None
+    placeholder: bool | None = None
+
+
+@router.get("/capabilities")
+async def list_capabilities(
+    db: AsyncSession = Depends(get_db),
+    admin_user: User = Depends(require_admin),
+):
+    """List all active capability definitions for the admin management UI."""
+    defs = await load_capability_definitions(db)
+    return {"capabilities": capability_registry(settings, defs)}
+
+
+@router.post("/capabilities")
+async def create_capability(
+    req: CapabilityCreate,
+    db: AsyncSession = Depends(get_db),
+    admin_user: User = Depends(require_admin),
+):
+    """Create a new (custom) capability definition. Keys must be unique."""
+    key = (req.key or "").strip()
+    if not _CAP_KEY_RE.match(key):
+        raise HTTPException(
+            status_code=400,
+            detail="invalid capability key: use letters/digits/_ and start with a letter",
+        )
+    if req.kind not in ("toolset", "model"):
+        raise HTTPException(status_code=400, detail="kind must be 'toolset' or 'model'")
+    exists = (
+        await db.execute(select(CapabilityDefinition).where(CapabilityDefinition.key == key))
+    ).scalar_one_or_none()
+    if exists is not None:
+        raise HTTPException(status_code=400, detail=f"capability '{key}' already exists")
+    db.add(
+        CapabilityDefinition(
+            key=key,
+            label=(req.label or key).strip(),
+            kind=req.kind,
+            category=req.category or "未分类",
+            description=req.description or "",
+            toolsets=req.toolsets or [],
+            env_key=req.env_key or "",
+            platform_key_attr=req.platform_key_attr or "",
+            platform_key_value=req.platform_key_value or "",
+            config=req.config or {},
+            requires_key=req.requires_key,
+            placeholder=req.placeholder,
+            builtin=False,
+            enabled=True,
+        )
+    )
+    await write_audit_log(
+        db,
+        action="capability_create",
+        user_id=admin_user.id,
+        resource=key,
+        detail=req.model_dump(),
+    )
+    await db.commit()
+    return {"ok": True, "capability": key}
+
+
+@router.put("/capabilities/{key}")
+async def update_capability(
+    key: str,
+    req: CapabilityUpdate,
+    db: AsyncSession = Depends(get_db),
+    admin_user: User = Depends(require_admin),
+):
+    """Update an existing capability definition (label/key-params/url/config...)."""
+    obj = (
+        await db.execute(select(CapabilityDefinition).where(CapabilityDefinition.key == key))
+    ).scalar_one_or_none()
+    if obj is None:
+        raise HTTPException(status_code=404, detail="capability not found")
+    changed: dict = {}
+    for field in (
+        "label",
+        "kind",
+        "category",
+        "description",
+        "toolsets",
+        "env_key",
+        "platform_key_attr",
+        "config",
+        "requires_key",
+        "placeholder",
+    ):
+        val = getattr(req, field)
+        if val is not None:
+            setattr(obj, field, val)
+            changed[field] = val
+    # platform_key_value: None => keep; "" => clear; non-empty => set.
+    # Audit log never records the key value itself.
+    if req.platform_key_value is not None:
+        obj.platform_key_value = req.platform_key_value
+        changed["platform_key_value"] = (
+            "<cleared>" if req.platform_key_value == "" else "<set>"
+        )
+    if changed:
+        await write_audit_log(
+            db,
+            action="capability_update",
+            user_id=admin_user.id,
+            resource=key,
+            detail=changed,
+        )
+        await db.commit()
+    return {"ok": True}
+
+
+@router.delete("/capabilities/{key}")
+async def delete_capability(
+    key: str,
+    db: AsyncSession = Depends(get_db),
+    admin_user: User = Depends(require_admin),
+):
+    """Delete a capability definition.
+
+    Built-in definitions are soft-deleted (``enabled=False``) so the seeded row
+    survives; custom definitions are hard-deleted. Dangling default/per-user
+    grants for this capability are removed either way.
+    """
+    obj = (
+        await db.execute(select(CapabilityDefinition).where(CapabilityDefinition.key == key))
+    ).scalar_one_or_none()
+    if obj is None:
+        raise HTTPException(status_code=404, detail="capability not found")
+    if obj.builtin:
+        obj.enabled = False
+    else:
+        await db.delete(obj)
+    await db.execute(
+        delete(PlatformCapabilityDefault).where(PlatformCapabilityDefault.capability == key)
+    )
+    await db.execute(delete(UserCapability).where(UserCapability.capability == key))
+    await write_audit_log(
+        db,
+        action="capability_delete",
+        user_id=admin_user.id,
+        resource=key,
+        detail={"builtin": obj.builtin},
+    )
+    await db.commit()
+    return {"ok": True}
+
+
+class CapabilityPushRequest(BaseModel):
+    user_ids: list[str]
+
+
+@router.post("/capabilities/{key}/push-users")
+async def push_capability_to_users(
+    key: str,
+    req: CapabilityPushRequest,
+    db: AsyncSession = Depends(get_db),
+    admin_user: User = Depends(require_admin),
+):
+    """Enable this capability for the selected users AND hot-apply it to any
+    running container, so the grant takes effect immediately with no rebuild.
+
+    The grant is always written for every selected user. Containers that are
+    currently running are restarted with the new capability mounted
+    (``applied``); users without a running container are reported as
+    ``skipped`` but their grant is persisted and takes effect the next time
+    their container starts. A per-user apply failure is isolated and reported
+    under ``failed`` rather than aborting the batch.
+    """
+    obj = (
+        await db.execute(
+            select(CapabilityDefinition).where(
+                CapabilityDefinition.key == key, CapabilityDefinition.enabled.is_(True)
+            )
+        )
+    ).scalar_one_or_none()
+    if obj is None:
+        raise HTTPException(status_code=404, detail="capability not found")
+    if not req.user_ids:
+        return {
+            "ok": True,
+            "name": key,
+            "total": 0,
+            "pushed": 0,
+            "applied": 0,
+            "skipped": [],
+            "failed": [],
+        }
+
+    values = [
+        {"user_id": uid, "capability": key, "enabled": True}
+        for uid in req.user_ids
+    ]
+    stmt = (
+        pg_insert(UserCapability)
+        .values(values)
+        .on_conflict_do_update(
+            index_elements=["user_id", "capability"],
+            set_={"enabled": True},
+        )
+    )
+    await db.execute(stmt)
+    await db.commit()
+
+    applied: list[str] = []
+    skipped: list[dict] = []
+    failed: list[dict] = []
+    for index, uid in enumerate(req.user_ids):
+        if index:
+            await asyncio.sleep(_BULK_APPLY_RESTART_DELAY)
+        try:
+            result = await apply_container_capabilities(db, uid)
+        except Exception as exc:  # noqa: BLE001 - isolate per-user failures
+            failed.append({"user_id": uid, "error": str(exc)})
+            continue
+        if result.get("applied"):
+            applied.append(uid)
+        else:
+            skipped.append({"user_id": uid, "reason": result.get("reason", "error")})
+
+    await write_audit_log(
+        db,
+        action="capability_push_users",
+        user_id=admin_user.id,
+        resource=key,
+        detail={
+            "user_ids": req.user_ids,
+            "applied": len(applied),
+            "skipped": len(skipped),
+            "failed": len(failed),
+            "by_admin": admin_user.username,
+        },
+    )
+    await db.commit()
+    return {
+        "ok": True,
+        "name": key,
+        "total": len(req.user_ids),
+        "pushed": len(req.user_ids),
+        "applied": len(applied),
+        "skipped": skipped,
+        "failed": failed,
+    }
+
+
+@router.get("/capabilities/{key}/users")
+async def list_capability_users(
+    key: str,
+    db: AsyncSession = Depends(get_db),
+    admin_user: User = Depends(require_admin),
+):
+    """List every user with this capability's effective state (for per-user mgmt)."""
+    obj = (
+        await db.execute(
+            select(CapabilityDefinition).where(
+                CapabilityDefinition.key == key, CapabilityDefinition.enabled.is_(True)
+            )
+        )
+    ).scalar_one_or_none()
+    if obj is None:
+        raise HTTPException(status_code=404, detail="capability not found")
+    pd_row = (
+        await db.execute(
+            select(PlatformCapabilityDefault).where(PlatformCapabilityDefault.capability == key)
+        )
+    ).scalar_one_or_none()
+    default_inject = bool(getattr(pd_row, "default_inject", False)) if pd_row else False
+    uc_rows = (
+        await db.execute(select(UserCapability).where(UserCapability.capability == key))
+    ).scalars().all()
+    overrides = {r.user_id: bool(r.enabled) for r in uc_rows}
+    users = (await db.execute(select(User))).scalars().all()
+    out = []
+    for u in users:
+        override = overrides.get(u.id)
+        if override is not None:
+            enabled = override
+            source = "user"
+        else:
+            enabled = default_inject
+            source = "default" if default_inject else "off"
+        out.append(
+            {
+                "user_id": u.id,
+                "username": getattr(u, "username", "") or "",
+                "email": getattr(u, "email", "") or "",
+                "role": getattr(u, "role", "") or "",
+                "enabled": enabled,
+                "source": source,
+            }
+        )
+    return {"users": out}
+
 
 # ---------------------------------------------------------------------------
 # Platform skills (admin-managed, auto-installed into new containers)

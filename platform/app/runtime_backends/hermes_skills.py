@@ -81,6 +81,32 @@ def read_installed_marker(docker_id: str) -> dict[str, set[str]]:
     return {"user": _catalog_skill_names(docker_id), "managed": set()}
 
 
+# ---------------------------------------------------------------------------
+# Raw skills listing cache
+# ---------------------------------------------------------------------------
+# Enumerating skills runs a `docker exec` inside the user's container that
+# walks every skill directory and parses each SKILL.md (~400ms warm / ~2.4s
+# cold with ~275 skills). The client refetches the list on every chat page
+# mount, so cache the raw payload briefly. Skill files only change through
+# install/push/remove flows, which all call write_installed_marker -- it
+# invalidates this cache -- and the TTL below is the safety net for any
+# path that does not funnel through it.
+_RAW_SKILLS_CACHE_TTL_SECONDS = 30.0
+_raw_skills_cache: dict[
+    tuple[str | None, str | None, str | None],
+    tuple[float, list[dict]],
+] = {}
+
+
+def invalidate_hermes_skills_cache(container_id_or_name: str | None = None) -> None:
+    """Drop cached raw skill listings (all containers when key is None)."""
+    if container_id_or_name is None:
+        _raw_skills_cache.clear()
+        return
+    for key in [k for k in _raw_skills_cache if k[0] == container_id_or_name]:
+        _raw_skills_cache.pop(key, None)
+
+
 def write_installed_marker(
     docker_id: str, user: set[str], managed: set[str]
 ) -> dict[str, list[str]]:
@@ -98,6 +124,9 @@ def write_installed_marker(
         tar.addfile(info, io.BytesIO(payload))
     buf.seek(0)
     container.put_archive("/opt/data", buf.read())
+    # Install/push flows mutate the container's skill tree; force the next
+    # listing to re-read it instead of serving the cached payload.
+    invalidate_hermes_skills_cache(docker_id)
     return {"user": sorted(user), "managed": sorted(managed)}
 
 
@@ -756,6 +785,12 @@ def _raw_skills_from_hermes_container(
             detail="Hermes runtime container is unavailable",
         )
 
+    cache_key = (container_id_or_name, scope, agent_id)
+    cached = _raw_skills_cache.get(cache_key)
+    now = time.monotonic()
+    if cached is not None and now - cached[0] < _RAW_SKILLS_CACHE_TTL_SECONDS:
+        return cached[1]
+
     try:
         container = get_docker_container(container_id_or_name)
         root = _scope_root(scope, agent_id)
@@ -789,7 +824,9 @@ def _raw_skills_from_hermes_container(
 
     if not isinstance(payload, list):
         return []
-    return [item for item in payload if isinstance(item, dict) and item.get("name")]
+    items = [item for item in payload if isinstance(item, dict) and item.get("name")]
+    _raw_skills_cache[cache_key] = (time.monotonic(), items)
+    return items
 
 
 def list_skills_from_hermes_container(

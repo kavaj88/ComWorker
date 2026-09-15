@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import re
 import shutil
+import time
 from pathlib import Path
 from typing import Any
 
@@ -700,31 +701,63 @@ print(json.dumps({"agentId": agent_id, "workspace": workspace_for(agent_id), "fi
         raise HTTPException(status_code=404, detail="Agent not found")
     if exit_code != 0:
         raise HTTPException(status_code=500, detail=output.decode("utf-8", errors="replace") or "Failed to write Hermes Agent file")
+    # IDENTITY.md / SOUL.md edits change the cached identity prompt.
+    invalidate_agent_identity_cache(container_id_or_name, agent_id)
     return json.loads(output.decode("utf-8"))
+
+
+# Identity prompts are re-read from the container on EVERY message send
+# (~150-400ms) but change rarely. Cache briefly (including the "no identity"
+# outcome); update_agent_profile_in_hermes_container invalidates on edit.
+_AGENT_IDENTITY_TTL_SECONDS = 30.0
+_agent_identity_cache: dict[tuple[str | None, str], tuple[float, str | None]] = {}
+
+
+def invalidate_agent_identity_cache(
+    container_id_or_name: str | None = None, agent_id: str | None = None
+) -> None:
+    """Drop cached identity prompts (all containers when key is None)."""
+    if container_id_or_name is None:
+        _agent_identity_cache.clear()
+        return
+    for key in [
+        k for k in _agent_identity_cache
+        if k[0] == container_id_or_name and (agent_id is None or k[1] == agent_id)
+    ]:
+        _agent_identity_cache.pop(key, None)
 
 
 def agent_identity_prompt_from_hermes_container(container_id_or_name: str | None, agent_id: str | None) -> str | None:
     if not agent_id:
         return None
-    agent_id = _safe_agent_id(agent_id)
+    normalized = _safe_agent_id(agent_id)
+    cache_key = (container_id_or_name, normalized)
+    now = time.monotonic()
+    cached = _agent_identity_cache.get(cache_key)
+    if cached is not None and now - cached[0] < _AGENT_IDENTITY_TTL_SECONDS:
+        return cached[1]
     try:
-        profile_file = get_agent_profile_file_from_hermes_container(container_id_or_name, agent_id, "IDENTITY.md")
+        profile_file = get_agent_profile_file_from_hermes_container(container_id_or_name, normalized, "IDENTITY.md")
     except HTTPException:
+        _agent_identity_cache[cache_key] = (now, None)
         return None
     identity = str(profile_file.get("file", {}).get("content") or "").strip()
     if not identity:
+        _agent_identity_cache[cache_key] = (now, None)
         return None
-    name = agent_id
+    name = normalized
     for line in identity.splitlines():
         stripped = line.strip()
         if stripped.startswith("#"):
-            name = stripped.lstrip("#").strip() or agent_id
+            name = stripped.lstrip("#").strip() or normalized
             break
-    return "\n\n".join([
+    prompt = "\n\n".join([
         f"You are the Agent named {name}.",
         "Always follow this Agent identity when answering. If the user asks who you are, answer as this Agent rather than as the default Hermes assistant.",
         f"Agent identity file:\n{identity}",
     ])
+    _agent_identity_cache[cache_key] = (now, prompt)
+    return prompt
 
 
 def _read_json(path: Path) -> dict[str, Any]:

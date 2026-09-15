@@ -26,6 +26,8 @@ export function TokenEditor({
   const [name, setName] = useState(token?.name || "");
   const [user, setUser] = useState(token?.user_id || "");
   const [models, setModels] = useState(token?.allowed_models || []);
+  const [agents, setAgents] = useState<string[]>(token?.allowed_agents || []);
+  const [agentProtocols, setAgentProtocols] = useState<string[]>(token?.allowed_protocols || []);
   const [permissions, setPermissions] = useState<string[]>([]);
   const [permissionUser, setPermissionUser] = useState("");
   const [permissionError, setPermissionError] = useState("");
@@ -67,6 +69,8 @@ export function TokenEditor({
       const body = {
         name: name.trim(),
         allowed_models: models,
+        allowed_agents: agents,
+        allowed_protocols: agentProtocols,
         expires_at: expiry ? new Date(expiry).toISOString() : null,
         retain_content: retain,
         retention_days: days,
@@ -183,6 +187,54 @@ export function TokenEditor({
                 </label>
               ))}
           </fieldset>
+          <fieldset className="rounded-lg border p-3 space-y-2">
+            <legend className="px-1">授权协议</legend>
+            <p className="text-xs text-gray-500">
+              决定该令牌可用于哪种客户端协议：OpenAI 对应 Chat Completions，Anthropic
+              对应 Messages。留空则仅能调用模型网关，无法使用 Agent 协议接入。
+            </p>
+            <div className="flex gap-4">
+              {(["openai", "anthropic"] as const).map((p) => (
+                <label key={p} className="flex gap-2 items-center">
+                  <input
+                    type="checkbox"
+                    checked={agentProtocols.includes(p)}
+                    onChange={(e) =>
+                      setAgentProtocols((previous) =>
+                        e.target.checked
+                          ? [...previous, p]
+                          : previous.filter((x) => x !== p),
+                      )
+                    }
+                  />
+                  {p === "openai" ? "OpenAI 兼容" : "Anthropic 兼容"}
+                </label>
+              ))}
+            </div>
+          </fieldset>
+          <fieldset className="rounded-lg border p-3 space-y-2">
+            <legend className="px-1">授权 Agent 白名单（Agent 协议网关）</legend>
+            <p className="text-xs text-gray-500">
+              每行一个 Agent ID（如 main、insurance）；留空表示允许该用户全部 Agent。仅在勾选上述协议后生效。
+            </p>
+            <textarea
+              className="w-full rounded-md border bg-white p-2 text-sm font-mono"
+              rows={3}
+              placeholder={"main\ninsurance"}
+              value={agents.join("\n")}
+              onChange={(e) =>
+                setAgents(
+                  e.target.value
+                    .split(/[\s,]+/)
+                    .map((s) => s.trim())
+                    .filter(Boolean),
+                )
+              }
+            />
+            {agents.length > 0 && (
+              <p className="text-xs text-gray-500">{agents.length} 个 Agent 已授权</p>
+            )}
+          </fieldset>
           <label className="block space-y-2">
             有效期（留空为长期）
             <Input
@@ -231,7 +283,7 @@ export function TokenEditor({
                 busy ||
                 !name.trim() ||
                 !user ||
-                !models.length ||
+                (!models.length && !agents.length) ||
                 permissionUser !== user ||
                 !!permissionError
               }

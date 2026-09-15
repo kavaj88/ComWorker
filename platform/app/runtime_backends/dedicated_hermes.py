@@ -4,6 +4,7 @@ import asyncio
 import json
 import logging
 import time
+from collections.abc import Callable
 from datetime import datetime, timezone
 from typing import Any
 
@@ -167,6 +168,12 @@ def _elapsed_ms(start: float) -> float:
 
 
 class DedicatedHermesBackend:
+    # Legacy (read-only) session index cache. The index file is immutable
+    # history, and for most users it does not exist at all — yet every
+    # list_sessions() paid a full ensure_running() + container file read
+    # (~100-140ms) just to 404. Cache the (possibly empty) result per user.
+    _LEGACY_INDEX_TTL_SECONDS = 300.0
+
     def __init__(self, base_url: str | None = None):
         self._base_url_override = base_url
         self._api_ready_keys: set[tuple[str, str]] = set()
@@ -174,6 +181,7 @@ class DedicatedHermesBackend:
         self._clients: dict[tuple[str, str, int, float], HermesClient] = {}
         self._pending_titles_by_run: dict[str, tuple[str, str]] = {}
         self._agent_id_by_run: dict[str, str | None] = {}
+        self._legacy_index_cache: dict[str, tuple[float, dict[str, Any]]] = {}
 
     async def aclose(self) -> None:
         for client in self._clients.values():
@@ -297,13 +305,23 @@ class DedicatedHermesBackend:
         return data.decode("utf-8")
 
     async def _legacy_comworker_session_index(self, ctx: RuntimeContext) -> dict[str, Any]:
+        # Read-only immutable history: safe to cache per user (incl. the common
+        # "file absent" outcome), skipping a redundant ensure_running() +
+        # container read on every session-list request.
+        cache_key = str(ctx.user.id)
+        now = time.monotonic()
+        cached = self._legacy_index_cache.get(cache_key)
+        if cached is not None and now - cached[0] < self._LEGACY_INDEX_TTL_SECONDS:
+            return cached[1]
         try:
             raw = await self._read_legacy_data_file(ctx, LEGACY_COMWORKER_SESSIONS_INDEX)
             payload = json.loads(raw)
         except Exception as exc:
             logger.debug("legacy_comworker_sessions_unavailable user_id=%s error=%s", ctx.user.id, exc)
-            return {}
-        return payload if isinstance(payload, dict) else {}
+            payload = {}
+        result = payload if isinstance(payload, dict) else {}
+        self._legacy_index_cache[cache_key] = (now, result)
+        return result
 
     def _legacy_comworker_session_summary(self, session_key: str, record: Any) -> dict[str, Any] | None:
         if not isinstance(record, dict) or not _legacy_comworker_session_id(record):
@@ -750,6 +768,26 @@ class DedicatedHermesBackend:
             "message": final_message,
             "events": events,
         }
+
+    async def collect_run_events_stream(
+        self,
+        ctx: RuntimeContext,
+        run_id: str,
+        on_event: Callable[[dict[str, Any]], Any],
+        timeout_ms: int = 300000,
+    ) -> list[dict[str, Any]]:
+        """Stream run events to ``on_event`` in real time (for SSE protocol gateways).
+
+        Thin wrapper over :meth:`HermesClient.collect_run_events`: the callback
+        receives each raw hermes SSE event dict as it arrives, so a protocol
+        gateway can translate deltas into OpenAI/Anthropic chunks on the fly.
+        Returns the full event list once the stream ends or ``timeout_ms`` elapses.
+        """
+        return await (await self._client(ctx)).collect_run_events(
+            run_id,
+            timeout_ms=timeout_ms,
+            on_event=on_event,
+        )
 
     async def _resolve_run_failure(
         self, ctx: RuntimeContext, run_id: str, original_exc: Exception

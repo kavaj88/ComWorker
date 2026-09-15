@@ -17,7 +17,7 @@ from app.config import settings
 from app.db.engine import engine
 from app.db.models import Base
 from app.logging_setup import log_settings_summary, setup_logging
-from app.routes import admin, auth, connectors, llm, platform_config, proxy, models, setup
+from app.routes import admin, agent_gateway, auth, connectors, llm, platform_config, proxy, models, setup
 from app.runtime_router import close_runtime_backends
 from app.gateway import admin as gateway_admin, proxy as gateway_proxy
 from app.gateway.storage import GatewayRuntime
@@ -302,6 +302,17 @@ async def lifespan(app: FastAPI):
                 logger.info("Seeded %d built-in MCP connectors", n)
     except Exception:
         logger.exception("failed to seed built-in connectors")
+    # Seed the built-in capability definitions (web_search/browser/image_gen) —
+    # idempotent; never overwrites admin edits to existing rows.
+    try:
+        from app.capabilities import seed_capability_definitions
+
+        async with AsyncSession(engine) as seed_db:
+            n = await seed_capability_definitions(seed_db)
+            if n:
+                logger.info("Seeded %d built-in capability definitions", n)
+    except Exception:
+        logger.exception("failed to seed capability definitions")
     from app.db.engine import async_session
     app.state.gateway = GatewayRuntime(async_session)
     await app.state.gateway.start()
@@ -337,6 +348,7 @@ app.include_router(gateway_proxy.router)
 app.include_router(llm.router)
 app.include_router(models.router)
 app.include_router(comworker_compat.router)
+app.include_router(agent_gateway.router)
 # MUST be registered before proxy.router: /api/comworker/platform-config would
 # otherwise be swallowed by the proxy catch-all and forwarded to a user container.
 app.include_router(platform_config.client_router)

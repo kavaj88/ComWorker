@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { Key, Copy, Check, RefreshCw } from "lucide-react";
 import { generateApiToken } from "@/lib/api";
 import { Button } from "@/components/ui/button";
@@ -128,6 +129,52 @@ export COMWORKER_BASE_URL="http://your-server:8080"
 python call_agent_api.py --agent main -m "你好"
 `;
 
+const OPENAI_EXAMPLE = `from openai import OpenAI
+
+client = OpenAI(
+    base_url="http://YOUR_SERVER:8080/api/agent/v1",
+    api_key="YOUR_GATEWAY_TOKEN",  # 在「API 网关」创建，协议勾选 openai
+)
+
+stream = client.chat.completions.create(
+    model="main",  # agent id
+    messages=[{"role": "user", "content": "你好，介绍一下自己"}],
+    stream=True,
+)
+for chunk in stream:
+    delta = chunk.choices[0].delta.content or ""
+    print(delta, end="", flush=True)
+`;
+
+const OPENAI_CURL = `curl http://YOUR_SERVER:8080/api/agent/v1/chat/completions \\
+  -H "Authorization: Bearer YOUR_GATEWAY_TOKEN" \\
+  -H "Content-Type: application/json" \\
+  -d '{"model":"main","messages":[{"role":"user","content":"你好"}],"stream":false}'
+`;
+
+const ANTHROPIC_EXAMPLE = `import anthropic
+
+client = anthropic.Anthropic(
+    base_url="http://YOUR_SERVER:8080/api/agent",  # 注意：不含 /v1，SDK 会自动追加
+    api_key="YOUR_GATEWAY_TOKEN",  # 在「API 网关」创建，协议勾选 anthropic
+)
+
+with client.messages.stream(
+    model="main",  # agent id
+    max_tokens=4096,
+    messages=[{"role": "user", "content": "你好，介绍一下自己"}],
+) as stream:
+    for text in stream.text_stream:
+        print(text, end="", flush=True)
+`;
+
+const ANTHROPIC_CURL = `curl http://YOUR_SERVER:8080/api/agent/v1/messages \\
+  -H "x-api-key: YOUR_GATEWAY_TOKEN" \\
+  -H "anthropic-version: 2023-06-01" \\
+  -H "Content-Type: application/json" \\
+  -d '{"model":"main","max_tokens":4096,"messages":[{"role":"user","content":"你好"}],"stream":false}'
+`;
+
 export default function ApiAccessPage() {
   const [token, setToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -158,7 +205,7 @@ export default function ApiAccessPage() {
       <div>
         <h1 className="text-2xl font-bold text-gray-900">API 访问</h1>
         <p className="mt-1 text-sm text-gray-500">
-          生成 API Token，通过 Python 脚本调用 Agent
+          以 OpenAI / Anthropic 协议把 Agent 接入你的工作流，或用 API Token 直接调用
         </p>
       </div>
 
@@ -218,6 +265,34 @@ export default function ApiAccessPage() {
         </CardContent>
       </Card>
 
+      {/* Protocol access intro */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Key className="h-5 w-5 text-primary" />
+            OpenAI / Anthropic 协议接入
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <p className="text-sm text-gray-500">
+            ComWorker Agent 现已兼容 OpenAI Chat Completions 与 Anthropic Messages 协议。
+            任何支持这两种协议的客户端（Cherry Studio、Open WebUI、Claude Code、你自己的代码）
+            都可以把 Agent 当作「模型」直接调用：<code className="text-primary">model</code> 即 Agent ID，
+            审批自动通过，可无缝嵌入无人值守的自动化工作流。
+          </p>
+          <p className="text-sm text-gray-500">
+            协议接入使用独立的 <strong>Gateway Token</strong>（可限协议、限 Agent、可随时吊销），
+            先在「API 网关」创建并勾选 openai / anthropic 协议与授权 Agent：
+          </p>
+          <Link
+            href="/gateway"
+            className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-2 text-sm font-medium text-white hover:opacity-90"
+          >
+            前往 API 网关创建令牌 →
+          </Link>
+        </CardContent>
+      </Card>
+
       {/* CLI Usage */}
       <Card>
         <CardHeader>
@@ -267,6 +342,98 @@ export default function ApiAccessPage() {
           <pre className="rounded-lg bg-gray-100 border border-gray-200 p-4 text-sm text-gray-600 font-mono overflow-x-auto max-h-[500px] overflow-y-auto leading-relaxed">
             {AGENT_EXAMPLE}
           </pre>
+        </CardContent>
+      </Card>
+
+      {/* OpenAI protocol */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center justify-between">
+            <span>OpenAI 协议示例（Chat Completions）</span>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => copyToClipboard(OPENAI_EXAMPLE, "oa-py")}
+            >
+              {copied === "oa-py" ? <><Check className="h-3.5 w-3.5 text-green-600" /> 已复制</> : <><Copy className="h-3.5 w-3.5" /> 复制代码</>}
+            </Button>
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="text-xs text-gray-500 font-mono">
+            base_url: <code className="text-primary">http://YOUR_SERVER:8080/api/agent/v1</code>
+            &nbsp;|&nbsp; 认证: <code className="text-primary">Bearer &lt;GatewayToken&gt;</code>
+          </div>
+          <pre className="rounded-lg bg-gray-100 border border-gray-200 p-4 text-sm text-gray-600 font-mono overflow-x-auto leading-relaxed">
+            {OPENAI_EXAMPLE}
+          </pre>
+          <p className="text-xs text-gray-500">等效 curl：</p>
+          <pre className="rounded-lg bg-gray-100 border border-gray-200 p-4 text-sm text-gray-600 font-mono overflow-x-auto leading-relaxed">
+            {OPENAI_CURL}
+          </pre>
+        </CardContent>
+      </Card>
+
+      {/* Anthropic protocol */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center justify-between">
+            <span>Anthropic 协议示例（Messages）</span>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => copyToClipboard(ANTHROPIC_EXAMPLE, "an-py")}
+            >
+              {copied === "an-py" ? <><Check className="h-3.5 w-3.5 text-green-600" /> 已复制</> : <><Copy className="h-3.5 w-3.5" /> 复制代码</>}
+            </Button>
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="text-xs text-gray-500 font-mono">
+            base_url: <code className="text-primary">http://YOUR_SERVER:8080/api/agent</code>（不含 /v1，SDK 自动追加）
+            &nbsp;|&nbsp; 认证: <code className="text-primary">x-api-key: &lt;GatewayToken&gt;</code>
+          </div>
+          <pre className="rounded-lg bg-gray-100 border border-gray-200 p-4 text-sm text-gray-600 font-mono overflow-x-auto leading-relaxed">
+            {ANTHROPIC_EXAMPLE}
+          </pre>
+          <p className="text-xs text-gray-500">等效 curl（直连 /api/agent/v1/messages）：</p>
+          <pre className="rounded-lg bg-gray-100 border border-gray-200 p-4 text-sm text-gray-600 font-mono overflow-x-auto leading-relaxed">
+            {ANTHROPIC_CURL}
+          </pre>
+        </CardContent>
+      </Card>
+
+      {/* multi-turn session note */}
+      <Card>
+        <CardHeader>
+          <CardTitle>多轮会话（session）：默认无状态，按需开启</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3 text-sm text-gray-600 leading-relaxed">
+          <p>
+            协议网关<strong>默认无状态</strong>：每次请求都是全新对话，互不记得。
+            要做多轮上下文（让 Agent 记住上一轮），在请求里带一个<strong>稳定的会话标识</strong>即可，平台无需预先注册。
+          </p>
+          <p className="font-medium text-gray-700">session key 怎么来？</p>
+          <ul className="list-disc pl-5 space-y-1">
+            <li><strong>自己定（推荐）</strong>：直接编一个稳定字符串，如 <code className="text-primary">agent:main:session-myconv1</code>，每轮带同一个值。</li>
+            <li><strong>服务端发</strong>：首轮不带标识，响应里会回一个 key（流式在 <code>X-ComWorker-Session-Key</code> 头，非流式在 <code>comworker.session_key</code> 字段），下一轮原样带回。</li>
+          </ul>
+          <p className="font-medium text-gray-700">两种传法（等价）：</p>
+          <pre className="rounded-lg bg-gray-100 border border-gray-200 p-4 text-xs text-gray-600 font-mono overflow-x-auto">
+{`# ① URL 查询参数（标准 OpenAI/Anthropic SDK 用 default_query={"session": "..."}）
+curl "http://YOUR_SERVER:8080/api/agent/v1/chat/completions?session=agent:main:session-myconv1" \\
+  -H "Authorization: Bearer <GatewayToken>" -H "Content-Type: application/json" \\
+  -d '{"model":"main","messages":[{"role":"user","content":"记住我叫小章"}]}'
+
+# ② 自定义头（等价）
+curl http://YOUR_SERVER:8080/api/agent/v1/chat/completions \\
+  -H "Authorization: Bearer <GatewayToken>" -H "X-ComWorker-Session-Key: agent:main:session-myconv1" \\
+  -H "Content-Type: application/json" -d '{"model":"main","messages":[{"role":"user","content":"我叫什么？"}]}'`}
+          </pre>
+          <p className="text-xs text-gray-500">
+            第二轮带<strong>同一个</strong> session 值即续上上下文。<code>agent:</code> 后的 <code>main</code> 即 <code>model</code> 字段（agent id）。
+            详见设计文档 §4.4。
+          </p>
         </CardContent>
       </Card>
     </div>

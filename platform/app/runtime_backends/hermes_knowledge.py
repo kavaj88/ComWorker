@@ -5,6 +5,7 @@ import posixpath
 import re
 import shlex
 import textwrap
+import time
 
 from docker.errors import NotFound as DockerNotFound
 from fastapi import HTTPException, status
@@ -423,7 +424,16 @@ def build_knowledge_context(
         return ""
     results: list[object] = []
     seen_keys: set[tuple[str, object, str]] = set()
+    # Each candidate search is a container exec (~400ms) and Chinese queries
+    # expand into up to 24 n-gram candidates — unbounded, that alone cost the
+    # send path ~9s before the run even started, mostly with zero results.
+    # Cap the wall time: when the full query finds nothing, the extra n-gram
+    # probes rarely add value anyway; when it does hit, we exit early on
+    # max_results regardless. 0.8s ≈ full-query search + one chunk probe.
+    search_deadline = time.monotonic() + 0.8
     for candidate in _knowledge_query_candidates(query):
+        if time.monotonic() >= search_deadline:
+            break
         try:
             payload = search_knowledge_pages(container_id_or_name, agent_id, candidate)
         except HTTPException:

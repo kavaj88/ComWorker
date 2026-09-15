@@ -125,11 +125,18 @@ export interface PaginatedAuditLogs {
 export interface Capability {
   capability: string;
   label: string;
+  kind?: "toolset" | "model";
+  category?: string;
+  description?: string;
   toolsets: string[];
   env_key: string;
+  config?: Record<string, unknown>;
   requires_key: boolean;
   platform_key_configured: boolean;
+  has_platform_key?: boolean;
   placeholder?: boolean;
+  builtin?: boolean;
+  enabled?: boolean;
 }
 
 export interface CapabilityDefault {
@@ -138,9 +145,21 @@ export interface CapabilityDefault {
   config?: Record<string, unknown>;
 }
 
+export interface CapabilityUserState {
+  user_id: string;
+  username: string;
+  email: string;
+  role: string;
+  enabled: boolean;
+  source: "user" | "default" | "off";
+}
+
 export interface CapabilityState {
   capability: string;
   label: string;
+  kind?: "toolset" | "model";
+  category?: string;
+  description?: string;
   user_override: boolean;
   user_enabled: boolean | null;
   default_inject: boolean;

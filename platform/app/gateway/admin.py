@@ -29,13 +29,17 @@ def iso(value):
 def token_json(token, username=None):
     return {
         **{
-            key: getattr(token, key)
+            key: (getattr(token, key) or [])
+            if key in ("allowed_models", "allowed_agents", "allowed_protocols")
+            else getattr(token, key)
             for key in (
                 "id",
                 "name",
                 "user_id",
                 "token_hint",
                 "allowed_models",
+                "allowed_agents",
+                "allowed_protocols",
                 "enabled",
                 "retain_content",
                 "retention_days",
@@ -52,7 +56,9 @@ def token_json(token, username=None):
 class TokenCreate(BaseModel):
     name: str = Field(min_length=1, max_length=128)
     user_id: str
-    allowed_models: list[str] = Field(min_length=1, max_length=200)
+    allowed_models: list[str] = Field(default_factory=list, max_length=200)
+    allowed_agents: list[str] = Field(default_factory=list, max_length=200)
+    allowed_protocols: list[str] = Field(default_factory=list, max_length=2)
     expires_at: datetime | None = None
     retain_content: bool = False
     retention_days: int = Field(default=7, ge=1, le=90)
@@ -60,7 +66,9 @@ class TokenCreate(BaseModel):
 
 class TokenUpdate(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=128)
-    allowed_models: list[str] | None = Field(default=None, min_length=1, max_length=200)
+    allowed_models: list[str] | None = Field(default=None, max_length=200)
+    allowed_agents: list[str] | None = Field(default=None, max_length=200)
+    allowed_protocols: list[str] | None = Field(default=None, max_length=2)
     enabled: bool | None = None
     expires_at: datetime | None = None
     retain_content: bool | None = None
@@ -77,9 +85,19 @@ async def validate_token(db, user_id, values):
         values["name"] = values["name"].strip()
     if "allowed_models" in values:
         models = {m["id"] for m in await available_models(db, user_id)}
-        if not values["allowed_models"] or not set(values["allowed_models"]).issubset(models):
+        if not set(values["allowed_models"]).issubset(models):
             raise HTTPException(400, "白名单包含未配置、未启用或该用户无权使用的模型")
         values["allowed_models"] = list(dict.fromkeys(values["allowed_models"]))
+    if "allowed_agents" in values:
+        agents = values["allowed_agents"] or []
+        if not all(isinstance(a, str) and a.strip() for a in agents):
+            raise HTTPException(400, "可用 Agent 必须是非空字符串列表")
+        values["allowed_agents"] = list(dict.fromkeys(a.strip() for a in agents))
+    if "allowed_protocols" in values:
+        protos = values["allowed_protocols"] or []
+        if not set(protos).issubset({"openai", "anthropic"}):
+            raise HTTPException(400, "协议类型仅支持 openai / anthropic")
+        values["allowed_protocols"] = list(dict.fromkeys(protos))
     if values.get("expires_at"):
         date = values["expires_at"]
         if date.tzinfo:
@@ -130,6 +148,8 @@ async def create_token(
 ):
     values = body.model_dump()
     user = await validate_token(db, body.user_id, values)
+    if not values.get("allowed_models") and not values.get("allowed_agents"):
+        raise HTTPException(400, "请至少授权一个模型或 Agent")
     secret = "cw_" + secrets.token_urlsafe(32)
     token = GatewayToken(
         **values,
