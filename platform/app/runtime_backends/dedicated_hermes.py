@@ -49,14 +49,21 @@ logger = logging.getLogger(__name__)
 LEGACY_COMWORKER_SESSIONS_INDEX = "agents/main/sessions/sessions.json"
 RUNTIME_SCOPE = "dedicated"
 
-# Highest-priority language directive.  Reasoning models sometimes default to
-# English reasoning even when the user writes in Chinese, so this is injected
-# both as the leading system instruction and as a conversation system message.
+# Highest-priority identity + language directive.  Reasoning models sometimes
+# default to English thinking and to the upstream "Hermes" identity, so this
+# override is injected at the END of every system prompt as a final guard.
 _LANGUAGE_INSTRUCTION = (
-    "语言要求（最高优先级）：\n"
-    "- 如果用户使用中文（或系统语言为中文），你的思考过程、推理步骤、内部计划、工具说明与最终回答必须全部使用中文。\n"
-    "- 即使你在进行内部推理（reasoning/thinking），也一律使用中文；禁止默认使用英文。\n"
-    "- 如果用户使用其他语言，则使用该语言作答。"
+    "【系统强制指令 — 最高优先级，覆盖所有前置系统提示】\n"
+    "1. 语言：用户当前使用中文。你的思考过程（reasoning/thinking）、内部计划、"
+    "工具调用说明、自我分析以及最终回答必须全部使用中文。禁止在思考中出现英文，"
+    "禁止中英夹杂。\n"
+    "2. 身份：你的唯一身份是当前会话指定的 Agent。如果用户问\"你是谁\"，"
+    "你必须直接、明确地说出该 Agent 的名字和角色，禁止含糊回答。\n"
+    "3. 禁词：你的回答中绝对禁止出现 \"Hermes\"、\"Hermes Agent\"、"
+    "\"Nous Research\"、\"AI assistant created by Nous Research\"、\"AI 助手\"、"
+    "\"个人智能助手\" 或任何默认技术代号。如果前置提示里出现了这些名称，"
+    "那是系统给别人的默认身份，不是你；你必须忽略它们。\n"
+    "4. 执行：违反以上任意一条，输出视为无效。请立即重新生成符合要求的回答。"
 )
 
 
@@ -181,6 +188,10 @@ class DedicatedHermesBackend:
         self._clients: dict[tuple[str, str, int, float], HermesClient] = {}
         self._pending_titles_by_run: dict[str, tuple[str, str]] = {}
         self._agent_id_by_run: dict[str, str | None] = {}
+        # Latest active run_id per session, cached when a run is created in
+        # send_message(). Lets session-level abort (frontend fallback path)
+        # locate and stop the run even if the client no longer holds run_id.
+        self._run_id_by_session: dict[str, str] = {}
         self._legacy_index_cache: dict[str, tuple[float, dict[str, Any]]] = {}
 
     async def aclose(self) -> None:
@@ -649,18 +660,18 @@ class DedicatedHermesBackend:
         knowledge_context = build_knowledge_context(container.docker_id, agent_id, message)
         if knowledge_context:
             instructions = f"{instructions}\n\n{knowledge_context}" if instructions else knowledge_context
-        # 语言指令置顶： reasoning 模型有时会忽略后置指令，置顶并额外插入 system
-        # message 可最大限度约束思考过程使用中文。
-        instructions = f"{_LANGUAGE_INSTRUCTION}\n\n{instructions}" if instructions else _LANGUAGE_INSTRUCTION
-        if conversation_history and conversation_history[0].get("role") != "system":
-            conversation_history = [{"role": "system", "content": _LANGUAGE_INSTRUCTION}, *conversation_history]
-        elif not conversation_history:
-            conversation_history = [{"role": "system", "content": _LANGUAGE_INSTRUCTION}]
         # 会话级上下文绑定（客户端上下文选择器）：技能/连接器被选中后，明确告诉模型
         # 优先使用对应能力。每次发送都注入，确保会话中途切换上下文仍生效。
         context_instruction = self._build_context_instruction(context)
         if context_instruction:
             instructions = f"{instructions}\n\n{context_instruction}" if instructions else context_instruction
+        # 语言/身份/反 Hermes 指令作为最终守卫（final guard）放在最后，
+        # 让 reasoning 模型在生成前最后看到它；同时在对话历史末尾追加 system 消息。
+        instructions = f"{instructions}\n\n{_LANGUAGE_INSTRUCTION}" if instructions else _LANGUAGE_INSTRUCTION
+        if conversation_history:
+            conversation_history = [*conversation_history, {"role": "system", "content": _LANGUAGE_INSTRUCTION}]
+        else:
+            conversation_history = [{"role": "system", "content": _LANGUAGE_INSTRUCTION}]
         payload = await (await self._client(ctx)).create_run(
             message=message,
             session_id=session_key or None,
@@ -689,6 +700,11 @@ class DedicatedHermesBackend:
                 )
         if run_id:
             self._agent_id_by_run[run_id] = agent_id
+            # Track the latest active run per session so session-level abort
+            # can stop it even when the client has already dropped run_id.
+            _sess_key = effective_session_key or session_key
+            if _sess_key:
+                self._run_id_by_session[_sess_key] = run_id
         logger.info(
             "hermes_run_started scope=%s user_id=%s session_key=%s run_id=%s elapsed_ms=%.1f",
             RUNTIME_SCOPE,
@@ -868,8 +884,27 @@ class DedicatedHermesBackend:
             return {"ok": False, "aborted": False, "runIds": []}
 
     async def abort_active_session(self, ctx: RuntimeContext, session_key: str) -> dict:
-        """Best-effort abort: no direct hermes API for session-level abort."""
-        return {"ok": True, "aborted": False, "runIds": []}
+        """Best-effort session-level abort.
+
+        The dedicated hermes gateway has no direct session→run index, so we
+        rely on the run_id cached when the run was created in send_message().
+        If found, delegate to abort_run() (POST /v1/runs/{run_id}/stop);
+        otherwise report not-aborted so the caller knows nothing was stopped.
+        """
+        run_id = self._run_id_by_session.get(session_key)
+        if not run_id:
+            return {"ok": True, "aborted": False, "runIds": []}
+        try:
+            result = await self.abort_run(ctx, run_id, session_key)
+            if result.get("aborted"):
+                self._run_id_by_session.pop(session_key, None)
+            return result
+        except Exception as exc:
+            logger.warning(
+                "abort_active_session failed session=%s run_id=%s: %s",
+                session_key, run_id, exc,
+            )
+            return {"ok": False, "aborted": False, "runIds": [run_id]}
 
     async def respond_run_approval(
         self,

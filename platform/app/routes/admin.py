@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import base64
 import gzip
 import json
 import logging
@@ -11,7 +12,12 @@ import re
 import secrets
 import csv
 import io
-from datetime import datetime, timedelta
+import time
+from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime, timedelta, timezone
+import zoneinfo
+
+from app.config import settings
 from pathlib import Path
 
 import docker
@@ -21,7 +27,128 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
-from sqlalchemy import cast, Date, delete, func, select, update
+
+
+# --- Token 用量统计辅助：合并 UsageRecord + GatewayRequest，按平台本地时区(默认 Asia/Shanghai) ---
+def _app_tz() -> str:
+    return getattr(settings, "container_tz", None) or "Asia/Shanghai"
+
+
+def _local_today_start() -> datetime:
+    """平台本地时区当天 00:00，转成 UTC naive datetime 用于与 DB 时间列比较。
+    UsageRecord.created_at / GatewayRequest.started_at 均以 UTC 存储。"""
+    tz = zoneinfo.ZoneInfo(_app_tz())
+    midnight_local = (
+        datetime.now(timezone.utc)
+        .astimezone(tz)
+        .replace(hour=0, minute=0, second=0, microsecond=0)
+    )
+    return midnight_local.astimezone(timezone.utc).replace(tzinfo=None)
+
+
+def _local_date(col):
+    """将 UTC 存储的时间列转换为平台本地时区日期，用于按日分桶。"""
+    tz = _app_tz()
+    return cast(col.op("AT TIME ZONE")("UTC").op("AT TIME ZONE")(tz), Date)
+
+
+# ---------------------------------------------------------------------------
+# Hermes 用量采集：实时读取各 hermes 用户容器的 /opt/data/state.db，
+# 合并进管理端统计。无需改 hermes 源码、不覆盖用户自有 key、抗 hermes 升级覆盖。
+# state.db 的 sessions 表已按会话记录 input/output/cache_* /reasoning tokens、
+# billing_provider、model、started_at（详见 hermes_state.py）。
+# ---------------------------------------------------------------------------
+_HERMES_USAGE_CACHE: dict = {"ts": 0.0, "data": None}
+_HERMES_USAGE_TTL: float = 60.0  # 秒；避免每次刷新都 exec 所有容器
+
+
+_HERMES_SESSION_QUERY = """
+import sqlite3, json, sys
+db = "/opt/data/state.db"
+rows = []
+try:
+    con = sqlite3.connect(db)
+    cur = con.cursor()
+    cur.execute(
+        "SELECT id, model, billing_provider, billing_mode, "
+        "input_tokens, output_tokens, cache_read_tokens, "
+        "cache_write_tokens, reasoning_tokens, started_at, ended_at "
+        "FROM sessions"
+    )
+    for r in cur.fetchall():
+        rows.append({
+            "id": r[0],
+            "model": r[1],
+            "provider": r[2],
+            "mode": r[3],
+            "input_tokens": int(r[4] or 0),
+            "output_tokens": int(r[5] or 0),
+            "cache_read": int(r[6] or 0),
+            "cache_write": int(r[7] or 0),
+            "reasoning": int(r[8] or 0),
+            "started_at": r[9],
+            "ended_at": r[10],
+        })
+    con.close()
+except Exception as e:
+    rows = [{"error": str(e)}]
+sys.stdout.write(json.dumps(rows))
+"""
+
+
+def _read_hermes_state_db(container) -> list:
+    """通过 docker exec 读取单个 hermes 容器的 state.db 会话用量。"""
+    b64 = base64.b64encode(_HERMES_SESSION_QUERY.encode()).decode()
+    cmd = [
+        "python3", "-c",
+        "import base64,io;exec(compile(io.StringIO(base64.b64decode('%s').decode()).read(),'h','exec'))" % b64,
+    ]
+    try:
+        res = container.exec_run(cmd)
+    except Exception:
+        return []
+    if res.exit_code != 0:
+        return []
+    try:
+        return json.loads(res.output.decode("utf-8", "replace"))
+    except Exception:
+        return []
+
+
+async def _collect_hermes_sessions(db) -> list:
+    """读取所有 hermes 用户容器的 state.db，归属到平台用户，带 60s 缓存。
+
+    返回 list[dict]，每项含 user_id(容器归属)、model、provider、各类 token、started_at。
+    """
+    now = time.time()
+    if _HERMES_USAGE_CACHE["data"] is not None and (now - _HERMES_USAGE_CACHE["ts"]) < _HERMES_USAGE_TTL:
+        return _HERMES_USAGE_CACHE["data"]
+    sessions: list = []
+    try:
+        cont_rows = (await db.execute(select(Container.docker_id, Container.user_id))).all()
+        docker_to_user = {d: u for d, u in cont_rows if d}
+        prefix = (getattr(settings, "dedicated_runtime_container_name_prefix", None) or "hermes-user").strip() or "hermes-user"
+        client = _docker()
+        containers = [c for c in client.containers.list() if c.name and c.name.startswith(prefix)]
+        if containers:
+            with ThreadPoolExecutor(max_workers=min(8, len(containers))) as ex:
+                results = list(ex.map(_read_hermes_state_db, containers))
+            for c, rows in zip(containers, results):
+                uid = docker_to_user.get(c.id)
+                for s in rows:
+                    if not isinstance(s, dict) or "error" in s:
+                        continue
+                    s = dict(s)
+                    s["user_id"] = uid
+                    sessions.append(s)
+    except Exception as e:
+        logger.warning("collect hermes usage failed: %s", e)
+    _HERMES_USAGE_CACHE["data"] = sessions
+    _HERMES_USAGE_CACHE["ts"] = now
+    return sessions
+
+
+from sqlalchemy import cast, Date, delete, func, select, union_all, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.audit import write_audit_log
@@ -114,6 +241,7 @@ from app.db.models import (
     UsageRecord,
     User,
     UserCapability,
+    GatewayRequest,
 )
 from app.model_keys import get_api_key, set_api_key
 from app.model_config import (
@@ -269,16 +397,34 @@ async def list_users(
     page_size: int = 20,
     db: AsyncSession = Depends(get_db),
 ):
-    today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+    today_start = _local_today_start()
 
-    # Subquery: today's token usage per user
-    usage_sub = (
+    # Subquery: today's token usage per user (合并 UsageRecord + GatewayRequest)
+    ur_sub = (
         select(
             UsageRecord.user_id,
             func.coalesce(func.sum(UsageRecord.total_tokens), 0).label("tokens_today"),
         )
         .where(UsageRecord.created_at >= today_start)
         .group_by(UsageRecord.user_id)
+    )
+    gr_sub = (
+        select(
+            GatewayRequest.user_id,
+            func.coalesce(
+                func.sum(GatewayRequest.input_tokens + GatewayRequest.output_tokens), 0
+            ).label("tokens_today"),
+        )
+        .where(GatewayRequest.started_at >= today_start)
+        .group_by(GatewayRequest.user_id)
+    )
+    union_sub = union_all(ur_sub, gr_sub).subquery()
+    usage_sub = (
+        select(
+            union_sub.c.user_id,
+            func.coalesce(func.sum(union_sub.c.tokens_today), 0).label("tokens_today"),
+        )
+        .group_by(union_sub.c.user_id)
         .subquery()
     )
 
@@ -1395,12 +1541,36 @@ async def restore_user_volume(
 @router.get("/usage/summary")
 async def usage_summary(db: AsyncSession = Depends(get_db)):
     """Global usage summary for the platform."""
-    today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
-    total_today = (await db.execute(
-        select(func.coalesce(func.sum(UsageRecord.total_tokens), 0)).where(
-            UsageRecord.created_at >= today_start,
+    today_start = _local_today_start()
+    ur_today = (
+        await db.scalar(
+            select(func.coalesce(func.sum(UsageRecord.total_tokens), 0)).where(
+                UsageRecord.created_at >= today_start,
+            )
         )
-    )).scalar_one()
+    ) or 0
+    gr_today = (
+        await db.scalar(
+            select(
+                func.coalesce(
+                    func.sum(GatewayRequest.input_tokens + GatewayRequest.output_tokens), 0
+                )
+            ).where(GatewayRequest.started_at >= today_start)
+        )
+    ) or 0
+    hermes_sessions = await _collect_hermes_sessions(db)
+    hermes_today = 0
+    for s in hermes_sessions:
+        sa = s.get("started_at")
+        if not sa:
+            continue
+        try:
+            dt = datetime.fromtimestamp(float(sa), tz=timezone.utc).replace(tzinfo=None)
+        except Exception:
+            continue
+        if dt >= today_start:
+            hermes_today += int(s.get("input_tokens", 0)) + int(s.get("output_tokens", 0))
+    total_today = int(ur_today) + int(gr_today) + hermes_today
     total_users = (await db.execute(select(func.count(User.id)))).scalar_one()
     
     # Get containers with real running status from Docker
@@ -1431,66 +1601,180 @@ async def usage_history(
     """Usage history with daily and by-model aggregations."""
     cutoff = datetime.utcnow() - timedelta(days=days)
 
-    # --- Daily aggregation ---
-    daily_q = (
+    # --- Daily aggregation (合并 UsageRecord + GatewayRequest，按平台本地时区分日) ---
+    # 用子查询先算每行本地日期，外层 GROUP BY 子查询投影的 date 列，
+    # 避免 PostgreSQL 对含 AT TIME ZONE 的显式 GROUP BY 表达式做等价检查报错。
+    ur_sub_q = (
         select(
-            cast(UsageRecord.created_at, Date).label("date"),
-            func.coalesce(func.sum(UsageRecord.input_tokens), 0).label("input_tokens"),
-            func.coalesce(func.sum(UsageRecord.output_tokens), 0).label("output_tokens"),
-            func.coalesce(func.sum(UsageRecord.total_tokens), 0).label("total_tokens"),
+            _local_date(UsageRecord.created_at).label("date"),
+            func.coalesce(UsageRecord.input_tokens, 0).label("input_tokens"),
+            func.coalesce(UsageRecord.output_tokens, 0).label("output_tokens"),
+            func.coalesce(UsageRecord.total_tokens, 0).label("total_tokens"),
         )
         .where(UsageRecord.created_at >= cutoff)
-        .group_by(cast(UsageRecord.created_at, Date))
-        .order_by(cast(UsageRecord.created_at, Date))
     )
     if user_id:
-        daily_q = daily_q.where(UsageRecord.user_id == user_id)
-
-    daily_rows = (await db.execute(daily_q)).all()
-    daily = [
-        {
-            "date": str(r.date),
-            "input_tokens": r.input_tokens,
-            "output_tokens": r.output_tokens,
-            "total_tokens": r.total_tokens,
-        }
-        for r in daily_rows
-    ]
-
-    # --- By model aggregation ---
-    model_q = (
-        select(
-            UsageRecord.user_id,
-            User.username.label("username"),
-            UsageRecord.model,
-            UsageRecord.provider_id,
-            UsageRecord.upstream_model,
-            func.coalesce(func.sum(UsageRecord.input_tokens), 0).label("input_tokens"),
-            func.coalesce(func.sum(UsageRecord.output_tokens), 0).label("output_tokens"),
-            func.coalesce(func.sum(UsageRecord.total_tokens), 0).label("total_tokens"),
+        ur_sub_q = ur_sub_q.where(UsageRecord.user_id == user_id)
+    ur_sub = ur_sub_q.subquery()
+    ur_daily = (
+        await db.execute(
+            select(
+                ur_sub.c.date,
+                func.coalesce(func.sum(ur_sub.c.input_tokens), 0).label("input_tokens"),
+                func.coalesce(func.sum(ur_sub.c.output_tokens), 0).label("output_tokens"),
+                func.coalesce(func.sum(ur_sub.c.total_tokens), 0).label("total_tokens"),
+            )
+            .group_by(ur_sub.c.date)
+            .order_by(ur_sub.c.date)
         )
-        .join(User, User.id == UsageRecord.user_id, isouter=True)
-        .where(UsageRecord.created_at >= cutoff)
-        .group_by(UsageRecord.user_id, User.username, UsageRecord.model, UsageRecord.provider_id, UsageRecord.upstream_model)
-        .order_by(func.sum(UsageRecord.total_tokens).desc())
+    ).mappings().all()
+
+    gr_sub_q = (
+        select(
+            _local_date(GatewayRequest.started_at).label("date"),
+            func.coalesce(GatewayRequest.input_tokens, 0).label("input_tokens"),
+            func.coalesce(GatewayRequest.output_tokens, 0).label("output_tokens"),
+            (
+                func.coalesce(GatewayRequest.input_tokens, 0)
+                + func.coalesce(GatewayRequest.output_tokens, 0)
+            ).label("total_tokens"),
+        )
+        .where(GatewayRequest.started_at >= cutoff)
     )
     if user_id:
-        model_q = model_q.where(UsageRecord.user_id == user_id)
+        gr_sub_q = gr_sub_q.where(GatewayRequest.user_id == user_id)
+    gr_sub = gr_sub_q.subquery()
+    gr_daily = (
+        await db.execute(
+            select(
+                gr_sub.c.date,
+                func.coalesce(func.sum(gr_sub.c.input_tokens), 0).label("input_tokens"),
+                func.coalesce(func.sum(gr_sub.c.output_tokens), 0).label("output_tokens"),
+                func.coalesce(func.sum(gr_sub.c.total_tokens), 0).label("total_tokens"),
+            )
+            .group_by(gr_sub.c.date)
+            .order_by(gr_sub.c.date)
+        )
+    ).mappings().all()
 
-    model_rows = (await db.execute(model_q)).all()
-    by_model = [
-        {
-            "user_id": r.user_id,
-            "username": r.username,
-            "model": r.model,
-            "provider_id": r.provider_id,
-            "upstream_model": r.upstream_model,
-            "input_tokens": r.input_tokens,
-            "output_tokens": r.output_tokens,
-            "total_tokens": r.total_tokens,
-        }
-        for r in model_rows
-    ]
+    daily_map: dict = {}
+    for row in list(ur_daily) + list(gr_daily):
+        d = str(row["date"])
+        agg = daily_map.setdefault(
+            d, {"input_tokens": 0, "output_tokens": 0, "total_tokens": 0}
+        )
+        agg["input_tokens"] += int(row["input_tokens"])
+        agg["output_tokens"] += int(row["output_tokens"])
+        agg["total_tokens"] += int(row["total_tokens"])
+    # --- Hermes state.db 会话用量并入（按平台本地时区分日） ---
+    hermes_sessions = await _collect_hermes_sessions(db)
+    hermes_cutoff_ts = cutoff.replace(tzinfo=timezone.utc).timestamp()
+    for s in hermes_sessions:
+        if user_id and s.get("user_id") != user_id:
+            continue
+        sa = s.get("started_at")
+        if not sa:
+            continue
+        try:
+            sa_f = float(sa)
+        except Exception:
+            continue
+        if sa_f < hermes_cutoff_ts:
+            continue
+        try:
+            d = datetime.fromtimestamp(sa_f, tz=timezone.utc).astimezone(
+                zoneinfo.ZoneInfo(_app_tz())
+            ).strftime("%Y-%m-%d")
+        except Exception:
+            continue
+        it = int(s.get("input_tokens", 0))
+        ot = int(s.get("output_tokens", 0))
+        agg = daily_map.setdefault(d, {"input_tokens": 0, "output_tokens": 0, "total_tokens": 0})
+        agg["input_tokens"] += it
+        agg["output_tokens"] += ot
+        agg["total_tokens"] += it + ot
+
+    daily = [{"date": d, **daily_map[d]} for d in sorted(daily_map)]
+
+    # --- By model aggregation (合并两源，按 user/model/provider/upstream 合并) ---
+    users_map = {
+        uid: uname
+        for uid, uname in (await db.execute(select(User.id, User.username))).all()
+    }
+
+    async def _model_rows(ts_col, user_col, model_col, prov_col, up_col, in_col, out_col, total_expr):
+        q = (
+            select(
+                user_col.label("user_id"),
+                model_col.label("model"),
+                prov_col.label("provider_id"),
+                up_col.label("upstream_model"),
+                func.coalesce(func.sum(in_col), 0).label("input_tokens"),
+                func.coalesce(func.sum(out_col), 0).label("output_tokens"),
+                func.coalesce(func.sum(total_expr), 0).label("total_tokens"),
+            )
+            .where(ts_col >= cutoff)
+            .group_by(user_col, model_col, prov_col, up_col)
+        )
+        if user_id:
+            q = q.where(user_col == user_id)
+        return (await db.execute(q)).mappings().all()
+
+    ur_model = await _model_rows(
+        UsageRecord.created_at, UsageRecord.user_id, UsageRecord.model,
+        UsageRecord.provider_id, UsageRecord.upstream_model,
+        UsageRecord.input_tokens, UsageRecord.output_tokens, UsageRecord.total_tokens,
+    )
+    gr_model = await _model_rows(
+        GatewayRequest.started_at, GatewayRequest.user_id, GatewayRequest.model,
+        GatewayRequest.provider_id, GatewayRequest.upstream_model,
+        GatewayRequest.input_tokens, GatewayRequest.output_tokens,
+        (GatewayRequest.input_tokens + GatewayRequest.output_tokens),
+    )
+
+    model_map: dict = {}
+    for row in list(ur_model) + list(gr_model):
+        key = (row["user_id"], row["model"], row["provider_id"], row["upstream_model"])
+        if key not in model_map:
+            model_map[key] = {
+                "user_id": row["user_id"],
+                "username": users_map.get(row["user_id"]),
+                "model": row["model"],
+                "provider_id": row["provider_id"],
+                "upstream_model": row["upstream_model"],
+                "input_tokens": 0,
+                "output_tokens": 0,
+                "total_tokens": 0,
+            }
+        model_map[key]["input_tokens"] += int(row["input_tokens"])
+        model_map[key]["output_tokens"] += int(row["output_tokens"])
+        model_map[key]["total_tokens"] += int(row["total_tokens"])
+    # --- Hermes 会话用量并入 by_model（provider 前缀 hermes:） ---
+    for s in hermes_sessions:
+        if user_id and s.get("user_id") != user_id:
+            continue
+        uid = s.get("user_id")
+        model = s.get("model") or "unknown"
+        provider = "hermes:" + str(s.get("provider") or "unknown")
+        key = (uid, model, provider, model)
+        it = int(s.get("input_tokens", 0))
+        ot = int(s.get("output_tokens", 0))
+        if key not in model_map:
+            model_map[key] = {
+                "user_id": uid,
+                "username": users_map.get(uid),
+                "model": model,
+                "provider_id": provider,
+                "upstream_model": model,
+                "input_tokens": 0,
+                "output_tokens": 0,
+                "total_tokens": 0,
+            }
+        model_map[key]["input_tokens"] += it
+        model_map[key]["output_tokens"] += ot
+        model_map[key]["total_tokens"] += it + ot
+
+    by_model = sorted(model_map.values(), key=lambda x: x["total_tokens"], reverse=True)[:20]
 
     return {"daily": daily, "by_model": by_model}
 
@@ -3397,30 +3681,100 @@ async def admin_user_usage(
     db: AsyncSession = Depends(get_db),
     admin_user: User = Depends(require_admin),
 ):
-    """某用户本周与累计 token 用量（来自 UsageRecord）。"""
+    """某用户本周与累计 token 用量（合并 UsageRecord + GatewayRequest，按平台本地时区）。"""
     user = await db.get(User, user_id)
     if user is None:
         raise HTTPException(status_code=404, detail="user not found")
-    now = datetime.utcnow()
-    week_start = (now - timedelta(days=7)).replace(hour=0, minute=0, second=0, microsecond=0)
-    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    tz = zoneinfo.ZoneInfo(_app_tz())
+    local_now = datetime.now(timezone.utc).astimezone(tz)
+    week_start = (
+        (local_now - timedelta(days=7))
+        .replace(hour=0, minute=0, second=0, microsecond=0)
+        .astimezone(timezone.utc)
+        .replace(tzinfo=None)
+    )
+    today_start = _local_today_start()
 
-    total = (await db.execute(
-        select(func.coalesce(func.sum(UsageRecord.total_tokens), 0)).where(UsageRecord.user_id == user_id)
-    )).scalar_one()
-    week = (await db.execute(
-        select(func.coalesce(func.sum(UsageRecord.total_tokens), 0))
-        .where(UsageRecord.user_id == user_id, UsageRecord.created_at >= week_start)
-    )).scalar_one()
-    today = (await db.execute(
-        select(func.coalesce(func.sum(UsageRecord.total_tokens), 0))
-        .where(UsageRecord.user_id == user_id, UsageRecord.created_at >= today_start)
-    )).scalar_one()
+    ur_total = (
+        await db.scalar(
+            select(func.coalesce(func.sum(UsageRecord.total_tokens), 0)).where(
+                UsageRecord.user_id == user_id
+            )
+        )
+    ) or 0
+    gr_total = (
+        await db.scalar(
+            select(
+                func.coalesce(
+                    func.sum(GatewayRequest.input_tokens + GatewayRequest.output_tokens), 0
+                )
+            ).where(GatewayRequest.user_id == user_id)
+        )
+    ) or 0
+    total = int(ur_total) + int(gr_total)
+
+    ur_week = (
+        await db.scalar(
+            select(func.coalesce(func.sum(UsageRecord.total_tokens), 0)).where(
+                UsageRecord.user_id == user_id, UsageRecord.created_at >= week_start
+            )
+        )
+    ) or 0
+    gr_week = (
+        await db.scalar(
+            select(
+                func.coalesce(
+                    func.sum(GatewayRequest.input_tokens + GatewayRequest.output_tokens), 0
+                )
+            ).where(GatewayRequest.user_id == user_id, GatewayRequest.started_at >= week_start)
+        )
+    ) or 0
+    week = int(ur_week) + int(gr_week)
+
+    ur_today = (
+        await db.scalar(
+            select(func.coalesce(func.sum(UsageRecord.total_tokens), 0)).where(
+                UsageRecord.user_id == user_id, UsageRecord.created_at >= today_start
+            )
+        )
+    ) or 0
+    gr_today = (
+        await db.scalar(
+            select(
+                func.coalesce(
+                    func.sum(GatewayRequest.input_tokens + GatewayRequest.output_tokens), 0
+                )
+            ).where(GatewayRequest.user_id == user_id, GatewayRequest.started_at >= today_start)
+        )
+    ) or 0
+    today = int(ur_today) + int(gr_today)
+
+    # Hermes state.db 会话用量（按用户归属）
+    hermes_sessions = await _collect_hermes_sessions(db)
+    h_total = h_week = h_today = 0
+    for s in hermes_sessions:
+        if s.get("user_id") != user_id:
+            continue
+        it = int(s.get("input_tokens", 0))
+        ot = int(s.get("output_tokens", 0))
+        tot = it + ot
+        h_total += tot
+        sa = s.get("started_at")
+        if not sa:
+            continue
+        try:
+            dt = datetime.fromtimestamp(float(sa), tz=timezone.utc).replace(tzinfo=None)
+        except Exception:
+            continue
+        if dt >= today_start:
+            h_today += tot
+        if dt >= week_start:
+            h_week += tot
 
     return {
-        "tokens_today": int(today),
-        "tokens_this_week": int(week),
-        "tokens_total": int(total),
+        "tokens_today": int(today) + h_today,
+        "tokens_this_week": int(week) + h_week,
+        "tokens_total": int(total) + h_total,
     }
 
 

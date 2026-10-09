@@ -25,7 +25,9 @@ function matchKbPath(text: string): string | null {
   const mBare = reBare.exec(t)
   if (mBare) return mBare[1]
   if (/^[\p{L}\d_. -]+(\/[\p{L}\d_. -]+)*\.md$/iu.test(t)) {
-    return t.replace(new RegExp(`^(${KB_DIR_PATTERN}\\/|\\/${KB_DIR_PATTERN}\\)`, 'iu'), '')
+    // 注意：右括号不能转义。此前写成 `\\)` 会让外层 `^(` 永远不闭合，
+    // new RegExp 抛 "Unterminated group"，导致整棵 React 树崩溃（页面全白）。
+    return t.replace(new RegExp(`^(${KB_DIR_PATTERN}\\/|\\/${KB_DIR_PATTERN}\\/)`, 'iu'), '')
   }
   return null
 }

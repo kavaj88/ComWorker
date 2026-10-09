@@ -857,16 +857,32 @@ async def _capture_user_config_to_db(db, user_id: str, existing_config: dict) ->
     await db.commit()
 
 
-# Platform-managed reasoning-language guidance injected into every hermes
+# Platform-managed identity + language guidance injected into every hermes
 # container's /opt/data/SOUL.md (the HERMES_HOME identity slot that hermes reads
-# via load_soul_md). This is the upgrade-safe channel for forcing Chinese
-# thinking: it lives in platform code (not hermes source), so overwriting
-# hermes-agent/ with upstream never loses it. Append-only (marker-guarded) so a
-# user who edits their soul keeps their changes.
+# via load_soul_md). This is the upgrade-safe channel for branding and forcing
+# Chinese thinking: it lives in platform code (not hermes source), so overwriting
+# hermes-agent/ with upstream never loses it. Marker-guarded so a user who edits
+# their soul keeps their changes; if a required marker is missing we rewrite from
+# canonical to ensure critical anti-Hermes / branding instructions are present.
+DEFAULT_PLATFORM_NAME = "ComWorker"
+_HERMES_SOUL_IDENTITY_SECTION = (
+    "\n\n## 身份覆盖规则（最高优先级）\n\n"
+    "你是 **{{platform_name}}** 平台的 AI 助手。\n\n"
+    "当本次会话附带额外的 Agent 身份说明时，你必须完全采用该 Agent 身份回答，"
+    "行为、语气、专业领域都要与该 Agent 一致。\n\n"
+    "无论任何情况，你都绝对禁止自称 \"Hermes\"、\"Hermes Agent\"、"
+    "\"AI assistant created by Nous Research\"、\"Nous Research\" 或任何默认技术代号。"
+    "你的最终回答中不得出现这些名称。\n\n"
+    "如果用户问\"你是谁\"，默认情况下回答你是 **{{platform_name}} 助手**；"
+    "如果当前有 Agent 身份说明，则回答你是该 Agent（如 HR 顾问、程序员、研究员等）。\n"
+)
+_HERMES_SOUL_IDENTITY_MARKER = "## 身份覆盖规则"
 _HERMES_SOUL_LANG_SECTION = (
-    "\n\n## 语言偏好\n\n"
-    "默认使用中文进行思考（reasoning）和回复。除非用户明确要求使用其他语言，"
-    "否则推理过程与最终回答都使用中文表达。\n"
+    "\n\n## 语言偏好（最高优先级）\n\n"
+    "- 如果用户使用中文，你的思考过程（reasoning/thinking）、内部计划、工具调用说明、"
+    "自我分析以及最终回答必须全部使用中文。\n"
+    "- 即使模型在 reasoning 阶段默认倾向英文，你也必须强制使用中文进行内部推理。\n"
+    "- 除非用户明确要求使用其他语言，否则禁止使用英文思考。\n"
 )
 _HERMES_SOUL_LANG_MARKER = "## 语言偏好"
 
@@ -893,22 +909,64 @@ def _canonical_main_soul() -> str:
     return ""
 
 
-def _build_hermes_soul_md(container: docker.models.containers.Container) -> bytes | None:
-    """Return SOUL.md bytes to write, or None if guidance already present.
+def _build_hermes_soul_md(
+    container: docker.models.containers.Container,
+    platform_name: str = DEFAULT_PLATFORM_NAME,
+) -> bytes | None:
+    """Return SOUL.md bytes to write, or None if content is already up-to-date.
 
-    Appends the reasoning-language guidance to the existing soul (preserving any
-    user edits). For a fresh volume without a soul, falls back to the canonical
-    platform main soul so the container still boots with an identity.
+    The canonical main SOUL.md (deploy_copy/Agents/main/SOUL.md) contains
+    {{platform_name}} placeholders and the identity/language sections. We merge
+    it with the existing volume copy:
+
+    * If the volume copy is missing the identity marker, we rewrite from the
+      canonical soul so that anti-Hermes / branding instructions are guaranteed.
+    * Otherwise we preserve user edits and only substitute {{platform_name}}.
+    * If the language marker is also missing, append the language section.
+
+    Returns None when no write is needed.
     """
     existing = _read_existing_hermes_soul(container)
-    if _HERMES_SOUL_LANG_MARKER in existing:
+    canonical = _canonical_main_soul()
+    base = (canonical.rstrip() if canonical else "").replace("{{platform_name}}", platform_name)
+
+    # Build the desired canonical content, ensuring required markers exist.
+    desired = base
+    if _HERMES_SOUL_IDENTITY_MARKER not in desired:
+        desired = desired.rstrip() + _HERMES_SOUL_IDENTITY_SECTION.replace("{{platform_name}}", platform_name)
+    if _HERMES_SOUL_LANG_MARKER not in desired:
+        desired = desired.rstrip() + _HERMES_SOUL_LANG_SECTION
+
+    # If existing content already matches desired, nothing to do.
+    existing_substituted = existing.replace("{{platform_name}}", platform_name)
+    if existing_substituted.strip() == desired.strip():
         return None
-    if existing.strip():
-        merged = existing.rstrip() + _HERMES_SOUL_LANG_SECTION
-    else:
-        canonical = _canonical_main_soul()
-        merged = (canonical.rstrip() if canonical else "") + _HERMES_SOUL_LANG_SECTION
-    return merged.encode("utf-8")
+
+    # If the existing soul lacks the identity override section (e.g. an old
+    # volume from before this fix), rewrite from canonical so the anti-Hermes
+    # rule is present. This overwrites user edits to the identity section, but
+    # is necessary to prevent the model from leaking the default Hermes name.
+    if _HERMES_SOUL_IDENTITY_MARKER not in existing:
+        return desired.encode("utf-8")
+
+    # Identity section is present: preserve user edits, only substitute the
+    # platform name placeholder so branding stays current.
+    updated = existing.replace("{{platform_name}}", platform_name)
+    if updated == existing:
+        return None
+    return updated.encode("utf-8")
+
+
+async def _platform_name_or_default(db) -> str:
+    """Return configured platform.name from SystemFlag, defaulting to ComWorker."""
+    try:
+        if db is not None:
+            row = await db.get(SystemFlag, "platform.name")
+            if row and row.value:
+                return row.value.strip()
+    except Exception as exc:
+        logger.debug("failed to read platform.name SystemFlag: %s", exc)
+    return DEFAULT_PLATFORM_NAME
 
 
 def _write_hermes_runtime_files(
@@ -918,6 +976,7 @@ def _write_hermes_runtime_files(
     db=None,
     user_id: str | None = None,
     user_config: dict | None = None,
+    platform_name: str = DEFAULT_PLATFORM_NAME,
 ) -> dict:
     platform_config = yaml.safe_load(_build_hermes_config_yaml(plan)) or {}
     existing_config = _read_existing_hermes_config(container)
@@ -983,9 +1042,10 @@ def _write_hermes_runtime_files(
         _read_existing_hermes_env_channel_vars(container),
         plan,
     ).encode("utf-8")
-    # Inject platform-managed reasoning-language guidance into the hermes soul
-    # (HERMES_HOME/SOUL.md). Append-only: None when the marker is already present.
-    soul_content = _build_hermes_soul_md(container)
+    # Inject platform-managed identity + language guidance into the hermes soul
+    # (HERMES_HOME/SOUL.md). Rewrites from canonical if the anti-Hermes identity
+    # marker is missing; otherwise only substitutes {{platform_name}}.
+    soul_content = _build_hermes_soul_md(container, platform_name=platform_name)
 
     tar_buffer = io.BytesIO()
     with tarfile.open(fileobj=tar_buffer, mode="w") as tar:
@@ -1014,6 +1074,31 @@ def _write_hermes_runtime_files(
         raise RuntimeError("failed to write Hermes config.yaml/.env into container data volume")
     _repair_hermes_data_ownership(container)
     return existing_config
+
+
+def _write_hermes_soul_md(
+    container: docker.models.containers.Container,
+    platform_name: str = DEFAULT_PLATFORM_NAME,
+) -> None:
+    """Re-apply platform-managed identity + language guidance to /opt/data/SOUL.md.
+
+    The hermes docker entrypoint overwrites ``HERMES_HOME/SOUL.md`` from the
+    bundled active-agent copy on every container start. Call this after any
+    ``container.start()`` so the anti-Hermes / branding / language markers
+    survive restarts.
+    """
+    content = _build_hermes_soul_md(container, platform_name=platform_name)
+    if content is None:
+        return
+    tar_buffer = io.BytesIO()
+    with tarfile.open(fileobj=tar_buffer, mode="w") as tar:
+        soul_file = tarfile.TarInfo(name="SOUL.md")
+        soul_file.size = len(content)
+        soul_file.mode = 0o644
+        soul_file.mtime = int(time.time())
+        tar.addfile(soul_file, io.BytesIO(content))
+    tar_buffer.seek(0)
+    container.put_archive("/opt/data", tar_buffer.read())
 
 
 
@@ -1256,9 +1341,11 @@ async def create_container(
     )
     _write_runtime_metadata(docker_container, runtime_metadata)
     mcp_servers = await _collect_mcp_servers(db, user_id)
+    platform_name = await _platform_name_or_default(db)
     existing = _write_hermes_runtime_files(
         docker_container, container_plan, mcp_servers,
         db=db, user_id=user_id, user_config=user_config,
+        platform_name=platform_name,
     )
     # Safety net: capture any pre-existing volume data into DB so it is never
     # lost on a future rebuild. The primary write path is the models route.
@@ -1402,6 +1489,10 @@ async def ensure_running(db: AsyncSession, user_id: str) -> Container:
                 return await recreate_record(db, record, c)
             c.start()
             c.reload()
+            # Re-apply platform-managed SOUL.md guidance: the hermes entrypoint
+            # overwrites SOUL.md from the bundled agent copy on every start.
+            platform_name = await _platform_name_or_default(db)
+            _write_hermes_soul_md(c, platform_name=platform_name)
             # Sync internal IP after start
             nets = c.attrs.get("NetworkSettings", {}).get("Networks", {})
             for net_info in nets.values():
@@ -1433,6 +1524,11 @@ async def ensure_running(db: AsyncSession, user_id: str) -> Container:
             if c.status != "running":
                 c.start()
                 c.reload()
+                # Re-apply platform-managed SOUL.md guidance: the hermes
+                # entrypoint overwrites SOUL.md from the bundled agent copy on
+                # every start.
+                platform_name = await _platform_name_or_default(db)
+                _write_hermes_soul_md(c, platform_name=platform_name)
             # Sync internal IP — it may change after container restart
             nets = c.attrs.get("NetworkSettings", {}).get("Networks", {})
             for net_info in nets.values():
@@ -1575,9 +1671,11 @@ async def apply_container_capabilities(db: AsyncSession, user_id: str) -> dict:
     )
 
     user_config = await _load_user_config(db, user_id)
+    platform_name = await _platform_name_or_default(db)
     existing = _write_hermes_runtime_files(
         docker_container, plan, await _collect_mcp_servers(db, user_id),
         db=db, user_id=user_id, user_config=user_config,
+        platform_name=platform_name,
     )
     if user_id:
         await _capture_user_config_to_db(db, user_id, existing)

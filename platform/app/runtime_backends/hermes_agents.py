@@ -503,14 +503,28 @@ for name in ["memories", "sessions", "skills", "skins", "logs", "plans", "cron",
     (path / name).mkdir(parents=True, exist_ok=True)
 display_name = (payload.get("name") or agent_id).strip() or agent_id
 description = (payload.get("description") or "").strip()
-identity = f"# {display_name}\n\n{description}\n" if description else f"# {display_name}\n\nYou are {display_name}, a helpful AI assistant.\n"
+identity = f"# {display_name}\n\n{description}\n" if description else f"# {display_name}\n\n你是 {display_name}，一位专业的 AI 助手。你直接为用户服务，以该身份回答所有问题。\n"
 (path / "workspace" / "IDENTITY.md").write_text(identity, encoding="utf-8")
 (path / "workspace" / "AGENTS.md").write_text("1. Read `IDENTITY.md` for your role and behavior.\n2. Answer as this Agent.\n", encoding="utf-8")
 (path / "workspace" / "USER.md").write_text("", encoding="utf-8")
 (path / "memories" / "USER.md").write_text("", encoding="utf-8")
 soul = (payload.get("systemPrompt") or "").strip()
-if soul:
-    (path / "SOUL.md").write_text(soul, encoding="utf-8")
+if not soul:
+    soul = (
+        f"# {display_name} 的灵魂\n\n"
+        f"## 你是谁\n\n"
+        f"你是 **{display_name}**。{description}\n\n"
+        f"## 身份覆盖规则（最高优先级）\n\n"
+        f"你绝对禁止自称 \"Hermes\"、\"Hermes Agent\"、"
+        f"\"AI assistant created by Nous Research\"、\"Nous Research\" 或任何默认技术代号。"
+        f"如果用户问\"你是谁\"，你只能回答：我是 **{display_name}**。\n\n"
+        f"## 语言偏好（最高优先级）\n\n"
+        f"- 如果用户使用中文，你的思考过程（reasoning/thinking）、内部计划、工具调用说明、"
+        f"自我分析以及最终回答必须全部使用中文。\n"
+        f"- 即使模型在 reasoning 阶段默认倾向英文，你也必须强制使用中文进行内部推理。\n"
+        f"- 除非用户明确要求使用其他语言，否则禁止使用英文思考。\n"
+    )
+(path / "SOUL.md").write_text(soul, encoding="utf-8")
 meta = {
     "id": agent_id,
     "name": display_name,
@@ -748,12 +762,27 @@ def agent_identity_prompt_from_hermes_container(container_id_or_name: str | None
     name = normalized
     for line in identity.splitlines():
         stripped = line.strip()
-        if stripped.startswith("#"):
-            name = stripped.lstrip("#").strip() or normalized
-            break
+        # Prefer the explicit "名字" field if present (e.g. "- **名字：** Coder")
+        if "名字" in stripped:
+            for sep in ("：", ":"):
+                if sep in stripped:
+                    candidate = stripped.split(sep, 1)[1].strip().strip("*").strip()
+                    if candidate:
+                        name = candidate
+                        break
+            if name != normalized:
+                break
+    else:
+        # Fallback to the first markdown heading
+        for line in identity.splitlines():
+            stripped = line.strip()
+            if stripped.startswith("#"):
+                name = stripped.lstrip("#").strip() or normalized
+                break
     prompt = "\n\n".join([
-        f"You are the Agent named {name}.",
-        "Always follow this Agent identity when answering. If the user asks who you are, answer as this Agent rather than as the default Hermes assistant.",
+        f"You are the Agent named {name}. This is your ONLY identity for this conversation.",
+        f'If the user asks "你是谁" or "Who are you", you MUST answer: "我是 {name}，..." and briefly describe your role.',
+        "Never mention 'Hermes', 'Hermes Agent', 'Nous Research', or 'AI assistant created by Nous Research'.",
         f"Agent identity file:\n{identity}",
     ])
     _agent_identity_cache[cache_key] = (now, prompt)

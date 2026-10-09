@@ -173,6 +173,16 @@ function isProcessingPreludeMessage(content: string): boolean {
   ].some(prefix => normalized.startsWith(prefix))
 }
 
+// hermes 在「纯思考阶段中断」时会把一段英文占位符写进会话历史
+// （hermes-agent/agent/conversation_loop.py 的 INTERRUPT_WAITING_FOR_MODEL_PREFIX）。
+// 按约定不动 hermes 源码（会被上游覆盖），这里在前端渲染层做中文化。
+const HERMES_INTERRUPT_RE = /^Operation interrupted: waiting for model response \(([\d.]+)s elapsed\)\.$/
+function localizeInterruptPlaceholder(content: string): string {
+  const m = (content || '').trim().match(HERMES_INTERRUPT_RE)
+  if (m) return `⚠️ 已中断：在等待模型回复时停止（耗时 ${m[1]} 秒）`
+  return content
+}
+
 function isVisibleChatMessage(messages: SessionDetail['messages'], index: number): boolean {
   const msg = messages[index]
   if (!msg) return false
@@ -797,6 +807,7 @@ export default function Chat() {
       visibleCounter += 1
       return {
         ...m,
+        content: m.role === 'assistant' ? localizeInterruptPlaceholder(m.content || '') : m.content,
         model: persistedModel,
         timestamp: persistedTime || m.timestamp || null,
         hasReasoning: m.role === 'assistant' && !!(m.reasoning_content && m.reasoning_content.trim()),
@@ -970,7 +981,7 @@ export default function Chat() {
 
   useEffect(() => {
     scrollToBottom()
-  }, [messages, activeSessionKey, displayedTextBySession, activityBySession, scrollToBottom])
+  }, [messages, activeSessionKey, displayedTextBySession, displayedReasoningBySession, activityBySession, scrollToBottom])
 
   useEffect(() => {
     const createdAgent = searchParams.get('createdAgent')
@@ -1258,6 +1269,8 @@ export default function Chat() {
       setStreamingText(eventSessionKey, '')
       reasoningTextBySessionRef.current[eventSessionKey] = []
       delete textHiddenBySessionRef.current[eventSessionKey]
+      // 新的一轮开始：清除上轮的完成标记，确保本轮 final 仍会拉取最终消息
+      sseCompletedRef.current[eventSessionKey] = false
       return
     }
 
@@ -1269,6 +1282,10 @@ export default function Chat() {
         clearTimeout(sseFinalTimersRef.current[eventSessionKey])
       }
       sseFinalTimersRef.current[eventSessionKey] = setTimeout(async () => {
+        // 若 run 完成路径（waitForResponse）已收尾并标记完成，则跳过本重轮询，
+        // 避免对「正在聊的会话」重复发 8 次整份 getSession（响应变慢主因之一）。
+        // 发送态/思考态的清理已由 run 完成路径负责，跳过不会留下卡死态。
+        if (sseCompletedRef.current[eventSessionKey]) return
         // No new final events for 3s means the agent is done.
         for (let attempt = 0; attempt < 8; attempt += 1) {
           try {
@@ -1281,7 +1298,7 @@ export default function Chat() {
               sseCompletedRef.current[eventSessionKey] = true
               // Clear activity events after messages are loaded
               clearActivityForSession(eventSessionKey)
-              refreshSessions({ silent: true, force: true })
+              // 不再每次 final 都全量重拉会话列表（布局层已对后台会话做防抖刷新）
               return
             }
           } catch {
@@ -1488,9 +1505,19 @@ export default function Chat() {
             const last = segments[segments.length - 1]
             let nextSegments: ReasoningSegment[]
             if (last && !last.finalized) {
-              nextSegments = segments.slice(0, -1).concat({ content: text, ts: last.ts, finalized: true })
-            } else {
+              // Prefer the incrementally-streamed reasoning_content (authentic,
+              // complete, and in the model's own language) over the
+              // `reasoning.available` snapshot, which can be a truncated or
+              // differently-worded summary. Adopting the snapshot would corrupt a
+              // Chinese thinking trace with an English one (mixed-language box)
+              // or drop later reasoning. Only use the snapshot when we have no
+              // streamed content for this segment yet.
+              const content = last.content.trim() ? last.content : text
+              nextSegments = segments.slice(0, -1).concat({ content, ts: last.ts, finalized: true })
+            } else if (!last) {
               nextSegments = segments.concat({ content: text, ts: Date.now(), finalized: true })
+            } else {
+              nextSegments = segments
             }
             reasoningTextBySessionRef.current[key] = nextSegments
             setDisplayedReasoningBySession(prev => ({ ...prev, [key]: nextSegments }))
@@ -1999,15 +2026,41 @@ export default function Chat() {
     clearActivityForSession(key)
     closeRunEventStream(key)
     setSendingForSession(key, false)
-    setRunIdForSession(key, null)
-    clearInFlightRunIfMatches(runIdBySessionRef.current[key])
+
+    // Capture runId BEFORE clearing it — the abort target depends on it, and
+    // setRunIdForSession(key, null) must not run before we read it, or the
+    // run-level abort path is never taken (this was the root cause of
+    // "interrupt does nothing, full result still returns").
+    const runId = runIdBySessionRef.current[key] || null
 
     try {
-      const runId = runIdBySessionRef.current[key]
+      let aborted = false
       if (runId) {
-        await abortAgentRun(runId, key)
-      } else {
-        await abortActiveSessionRun(key)
+        try {
+          const r = await abortAgentRun(runId, key)
+          aborted = !!(r && r.ok !== false)
+        } catch {
+          aborted = false
+        }
+      }
+      if (!aborted) {
+        // Session-level fallback: platform locates the session's latest run
+        // and stops it. Durable even if the client already dropped run_id.
+        try {
+          await abortActiveSessionRun(key)
+        } catch {
+          // ignore — best-effort
+        }
+      }
+      // Give hermes a moment to land the interrupt and persist the partial
+      // reply, so the reload shows the result up to the interruption point
+      // rather than a stale/empty state.
+      if (runId) {
+        try {
+          await waitForAgentRun(runId, 3000)
+        } catch {
+          // ignore — proceed to reload regardless
+        }
       }
       const detail = await getSession(key).catch(() => null)
       if (detail) {
@@ -2016,6 +2069,9 @@ export default function Chat() {
       void refreshSessions({ silent: true, force: true })
     } catch (err: any) {
       toast.error(err?.message || '终止失败')
+    } finally {
+      setRunIdForSession(key, null)
+      clearInFlightRunIfMatches(runId)
     }
   }
 
@@ -2099,9 +2155,21 @@ export default function Chat() {
 
   const hasContent = input.trim() || pendingFiles.length > 0
   const isCurrentSending = Boolean(activeSessionKey && sendingBySession[activeSessionKey])
+  // Keep the streaming ProcessCard visible while a run is finishing and the
+  // final assistant message has not been loaded yet. This prevents the page from
+  // going blank between "run completed" and "final messages loaded".
+  const isCompleting = useMemo(() => {
+    if (!activeSessionKey || sendingBySession[activeSessionKey]) return false
+    const dt = displayedTextBySession[activeSessionKey] || ''
+    const dr = displayedReasoningBySession[activeSessionKey] || []
+    const ca = activityBySession[activeSessionKey] || []
+    const hasPendingOutput = !!(dt || dr.length || ca.length)
+    return hasPendingOutput && !hasAssistantAfterLastUser(messages)
+  }, [activeSessionKey, sendingBySession, displayedTextBySession, displayedReasoningBySession, activityBySession, messages])
+  const isBusy = isCurrentSending || isCompleting
   const slashQuery = getSlashQuery(input)
   const filteredSlashCommands = filterSlashCommands(slashCommands, slashQuery || '')
-  const showSlashMenu = slashQuery !== null && !slashMenuDismissed && !chatLoading && !isCurrentSending
+  const showSlashMenu = slashQuery !== null && !slashMenuDismissed && !chatLoading && !isBusy
   const groupedSlashCommands = filteredSlashCommands.reduce<Record<string, SlashCommandItem[]>>((acc, command) => {
     const key = command.category
     if (!acc[key]) acc[key] = []
@@ -2133,7 +2201,6 @@ export default function Chat() {
   // main thread on every keystroke-sized update. React batches deferred updates
   // and renders them at lower priority, keeping input responsive.
   const deferredDisplayedText = useDeferredValue(displayedText)
-  const deferredDisplayedReasoning = useDeferredValue(displayedReasoning)
   // Ref mirror so streamingProcessSteps can read the latest text for reasoning
   // dedup without re-running on every token. Previously deferredDisplayedText
   // was a useMemo dep, causing ProcessCard to re-render on every token.
@@ -2153,7 +2220,7 @@ export default function Chat() {
     // assistant message. Hide a segment if it closely matches the streamed
     // text — the model often restates its plan as both reasoning and output,
     // and showing both looks like a duplicate.
-    for (const seg of deferredDisplayedReasoning) {
+    for (const seg of displayedReasoning) {
       const reasoningText = seg.content.trim()
       const showReasoning = reasoningText && !(
         textContent && isSimilarText(reasoningText, textContent)
@@ -2184,7 +2251,7 @@ export default function Chat() {
 
     events.sort((a, b) => a.ts - b.ts)
     return events.map(e => e.step)
-  }, [deferredDisplayedReasoning, currentActivity, activeSessionKey])
+  }, [displayedReasoning, currentActivity, activeSessionKey])
   const isDraftStart = isDraftSession && messages.length === 0 && !activeSessionKey
   const agentOptions = useMemo(() => {
     const hasMain = agents.some(agent => agent.id === 'main')
@@ -2820,7 +2887,7 @@ export default function Chat() {
                       </Fragment>
                     )
                   })}
-                  {isCurrentSending && (
+                  {(isCurrentSending || isCompleting) && (
                     <div className="flex">
                       <div className="w-full min-w-[260px] px-1 py-1">
                         {streamingProcessSteps.length > 0 ? (
@@ -2828,14 +2895,14 @@ export default function Chat() {
                             <ProcessCard steps={streamingProcessSteps} streaming onOpenKnowledgeFile={handleOpenKnowledgeFile} />
                             {displayedText && (
                               <div className="text-light-text mt-1.5">
-                                <div className="text-sm whitespace-pre-wrap break-words">{deferredDisplayedText}</div>
+                                <MarkdownContent content={deferredDisplayedText} onOpenKnowledgeFile={handleOpenKnowledgeFile} onOpenWorkspaceFile={handleOpenWorkspaceFile} />
                                 <span className="inline-block w-1.5 h-4 ml-0.5 bg-accent-blue rounded-sm animate-pulse align-text-bottom" />
                               </div>
                             )}
                           </>
                         ) : displayedText ? (
                           <div className="text-light-text">
-                            <div className="text-sm whitespace-pre-wrap break-words">{deferredDisplayedText}</div>
+                            <MarkdownContent content={deferredDisplayedText} onOpenKnowledgeFile={handleOpenKnowledgeFile} onOpenWorkspaceFile={handleOpenWorkspaceFile} />
                             <span className="inline-block w-1.5 h-4 ml-0.5 bg-accent-blue rounded-sm animate-pulse align-text-bottom" />
                           </div>
                         ) : (

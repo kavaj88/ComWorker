@@ -1,5 +1,15 @@
-import { memo, useEffect, useState } from 'react';
+import { memo, useEffect, useRef, useState } from 'react';
 import { Brain, ChevronRight, Wrench, CircleCheck, AlertCircle, Loader2, MessageSquare, FileText } from 'lucide-react';
+
+function AutoScrollPre({ children, className }: { children: React.ReactNode; className?: string }) {
+  const ref = useRef<HTMLPreElement>(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    el.scrollTop = el.scrollHeight;
+  }, [children]);
+  return <pre ref={ref} className={className}>{children}</pre>;
+}
 
 export interface ProcessStep {
   type: 'thinking' | 'tool' | 'text';
@@ -127,7 +137,7 @@ function ProcessCardImpl({ steps, streaming = false, defaultExpanded, onOpenKnow
                   <Brain size={12} className="mt-0.5 shrink-0 text-purple-400/80" />
                   <div className="min-w-0 flex-1">
                     <div className="font-medium text-light-text-secondary">思考</div>
-                    <pre className="mt-0.5 whitespace-pre-wrap break-words text-[11px] text-light-text-secondary max-h-60 overflow-y-auto font-sans leading-relaxed">{text}</pre>
+                    <AutoScrollPre className="mt-0.5 whitespace-pre-wrap break-words text-[11px] text-light-text-secondary max-h-60 overflow-y-auto font-sans leading-relaxed">{text}</AutoScrollPre>
                   </div>
                 </div>
               );

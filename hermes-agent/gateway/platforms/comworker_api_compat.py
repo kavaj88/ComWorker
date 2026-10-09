@@ -98,8 +98,10 @@ def _profile_prompt_from_session_key(session_key: str | None) -> str | None:
     if not parts:
         return None
     return (
-        "以下内容来自当前 Hermes profile。请把它作为本次会话的 Agent 身份、"
-        "任务边界和工作区约束。\n\n"
+        "以下内容完全覆盖你的默认身份。你必须严格遵守，本次会话以该 Agent 身份回答，"
+        "行为、语气、专业领域都要与之一致。\n"
+        "绝对禁止自称 \"Hermes\"、\"Hermes Agent\"、"
+        "\"AI assistant created by Nous Research\"、\"Nous Research\" 或任何默认技术代号。\n\n"
         + "\n\n".join(parts)
     )
 

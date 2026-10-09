@@ -2,10 +2,18 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { Key, Copy, Check, RefreshCw } from "lucide-react";
+import { Key, Copy, Check, RefreshCw, Server } from "lucide-react";
 import { generateApiToken } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 
 const AGENT_EXAMPLE = `import json
 import time
@@ -175,6 +183,73 @@ const ANTHROPIC_CURL = `curl http://YOUR_SERVER:8080/api/agent/v1/messages \\
   -d '{"model":"main","max_tokens":4096,"messages":[{"role":"user","content":"你好"}],"stream":false}'
 `;
 
+const NATIVE_CAPABILITIES: { ability: string; endpoint: string; note: string }[] = [
+  {
+    ability: "会话管理",
+    endpoint: "GET /api/comworker/sessions\nGET/PUT/DELETE /api/comworker/sessions/{key}",
+    note: "列出会话、读取完整历史消息、改标题、删除会话",
+  },
+  {
+    ability: "发送消息",
+    endpoint: "POST /api/comworker/sessions/{key}/messages",
+    note: "返回 runId；可带 model（Agent ID）、title、context（绑定 skill / connector）",
+  },
+  {
+    ability: "等待回复",
+    endpoint: "GET /api/comworker/runs/{runId}/wait",
+    note: "长轮询直到该次运行结束，timeoutMs 默认 25000；比反复查消息数更可靠",
+  },
+  {
+    ability: "流式输出",
+    endpoint: "GET /api/comworker/runs/{runId}/events",
+    note: "SSE 逐段推送，适合边生成边展示",
+  },
+  {
+    ability: "中断执行",
+    endpoint: "POST /api/comworker/runs/{runId}/abort\nPOST /api/comworker/sessions/{key}/abort-active",
+    note: "终止指定一次运行，或终止该会话当前进行中的运行",
+  },
+  {
+    ability: "Agent 管理",
+    endpoint: "GET/POST/DELETE /api/comworker/agents\nGET /api/comworker/agents/{id}/files",
+    note: "列出、创建、删除 Agent，并查看其 IDENTITY 等文件",
+  },
+  {
+    ability: "技能管理",
+    endpoint: "/api/comworker/skills/*",
+    note: "安装 / 卸载 / 启停技能、读写技能文件、上传 zip、市场搜索与安装",
+  },
+  {
+    ability: "知识库",
+    endpoint: "/api/comworker/knowledge/*",
+    note: "list（列表）/ read（读页）/ search（检索）/ graph（图谱）",
+  },
+  {
+    ability: "文件管理",
+    endpoint: "/api/comworker/filemanager/*",
+    note: "上传、浏览、新建目录、删除工作区文件",
+  },
+  {
+    ability: "运行时预热",
+    endpoint: "POST /api/comworker/runtime/prewarm",
+    note: "提前拉起用户容器，避免首次调用冷启动等待",
+  },
+  {
+    ability: "全局事件流",
+    endpoint: "GET /api/comworker/events/stream",
+    note: "SSE 订阅该账号下所有会话与运行的事件",
+  },
+];
+
+function SectionHeading({ title, desc }: { title: string; desc: string }) {
+  return (
+    <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 border-b border-gray-200 pb-2">
+      <h2 className="text-lg font-semibold text-gray-900">{title}</h2>
+      <span className="text-xs text-gray-500">{desc}</span>
+    </div>
+  );
+}
+
 export default function ApiAccessPage() {
   const [token, setToken] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -205,7 +280,7 @@ export default function ApiAccessPage() {
       <div>
         <h1 className="text-2xl font-bold text-gray-900">API 访问</h1>
         <p className="mt-1 text-sm text-gray-500">
-          以 OpenAI / Anthropic 协议把 Agent 接入你的工作流，或用 API Token 直接调用
+          两种接入方式：原生 API（REST + API Token 直接调用），或 OpenAI / Anthropic 兼容协议（把 Agent 当「模型」用）
         </p>
       </div>
 
@@ -214,6 +289,65 @@ export default function ApiAccessPage() {
           {error}
         </div>
       )}
+
+      {/* ══════════════ 原生 API ══════════════ */}
+      <SectionHeading
+        title="原生 API"
+        desc="ComWorker 自有 REST 接口，Token 认证，可操作会话 / Agent / 技能 / 知识库 / 文件"
+      />
+
+      {/* 原生 API 能力概览 */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Server className="h-5 w-5 text-primary" />
+            原生 API 能力概览
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <p className="text-sm text-gray-500 leading-relaxed">
+            原生 API 是 ComWorker 自己的 REST 接口，用 <strong>API Token</strong> 认证，面向
+            <strong>平台资源本身</strong>，而不是「一次问答」。除了给 Agent 发消息、拿回复，
+            它还能管理会话历史、创建与删除 Agent、安装启停技能、检索知识库、读写工作区文件——
+            也就是把你在界面上能点的操作，几乎都暴露成了接口，适合做无人值守的批量任务与系统集成。
+          </p>
+          <div className="text-xs text-gray-500 font-mono">
+            基址: <code className="text-primary">http://YOUR_SERVER:8080</code>
+            &nbsp;|&nbsp; 认证: <code className="text-primary">Authorization: Bearer &lt;API_TOKEN&gt;</code>
+          </div>
+          <div className="overflow-x-auto rounded-lg border border-gray-200">
+            <Table className="text-xs">
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="w-[92px]">能力</TableHead>
+                  <TableHead className="w-[38%]">端点</TableHead>
+                  <TableHead>说明</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {NATIVE_CAPABILITIES.map((c) => (
+                  <TableRow key={c.ability}>
+                    <TableCell className="align-top font-medium text-gray-700">{c.ability}</TableCell>
+                    <TableCell className="align-top whitespace-pre-line font-mono text-primary">
+                      {c.endpoint}
+                    </TableCell>
+                    <TableCell className="align-top text-gray-500">{c.note}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
+          <div className="rounded-lg border border-yellow-200 bg-yellow-50 px-4 py-3 text-xs text-yellow-800 leading-relaxed">
+            <strong>权限提示：</strong>API Token 的权限完全等同于生成它的那个账号。
+            用管理员账号生成时，该 Token 同样能调用管理端接口（<code>/api/admin/*</code>）——
+            建议用普通成员账号生成，并只保管在服务端，不要写进前端代码或公开仓库。
+          </div>
+          <p className="text-xs text-gray-500">
+            逐字段的请求 / 响应结构可在平台的自动文档中查看：
+            <code className="text-primary">http://YOUR_SERVER:8080/docs</code>
+          </p>
+        </CardContent>
+      </Card>
 
       {/* Token Section */}
       <Card>
@@ -224,8 +358,10 @@ export default function ApiAccessPage() {
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <p className="text-sm text-gray-500">
-            API Token 有效期 365 天，用于程序化调用 Agent。
+          <p className="text-sm text-gray-500 leading-relaxed">
+            API Token 是一个有效期 <strong>365 天</strong>的 JWT，代表你的账号身份，
+            用于程序化调用上表中的全部原生接口。Token 只在生成的瞬间完整显示一次，
+            请立即保存到服务端配置或密钥管理系统；泄露等同于账号泄露，此时重新生成即可作废旧 Token。
           </p>
 
           {token ? (
@@ -265,6 +401,67 @@ export default function ApiAccessPage() {
         </CardContent>
       </Card>
 
+      {/* CLI Usage */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center justify-between">
+            <span>命令行调用</span>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => copyToClipboard(CLI_EXAMPLE, "cli")}
+            >
+              {copied === "cli" ? <><Check className="h-3.5 w-3.5 text-green-600" /> 已复制</> : <><Copy className="h-3.5 w-3.5" /> 复制</>}
+            </Button>
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <p className="text-sm text-gray-500 leading-relaxed">
+            项目根目录下的 <code className="text-primary">call_agent_api.py</code> 已封装好「发消息 → 等待 Agent 回复」的完整流程，
+            适合快速验证 Token 是否可用，也适合直接塞进 shell 脚本或 crontab 做定时任务：
+          </p>
+          <pre className="rounded-lg bg-gray-100 border border-gray-200 p-4 text-sm text-gray-600 font-mono overflow-x-auto leading-relaxed">
+            {CLI_EXAMPLE}
+          </pre>
+        </CardContent>
+      </Card>
+
+      {/* Python Example */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center justify-between">
+            <span>Python 调用示例</span>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => copyToClipboard(AGENT_EXAMPLE, "agent")}
+            >
+              {copied === "agent" ? <><Check className="h-3.5 w-3.5 text-green-600" /> 已复制</> : <><Copy className="h-3.5 w-3.5" /> 复制代码</>}
+            </Button>
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <p className="text-sm text-gray-500 leading-relaxed">
+            下面是纯标准库（不依赖任何 SDK）的最小实现：发送消息拿到 <code className="text-primary">runId</code>，
+            再轮询会话消息数，直到连续一段时间不再变化才认为 Agent 回复完毕——因为 Agent 会先返回工具调用过程，
+            可能产生多条消息。若要跳过手写轮询，也可改用 <code className="text-primary">GET /api/comworker/runs/&#123;runId&#125;/wait</code> 长轮询等待。
+          </p>
+          <div className="text-xs text-gray-500 font-mono">
+            端点: <code className="text-primary">POST /api/comworker/sessions/:key/messages</code>
+            &nbsp;|&nbsp; 认证: <code className="text-primary">Bearer {'<API_TOKEN>'}</code>
+          </div>
+          <pre className="rounded-lg bg-gray-100 border border-gray-200 p-4 text-sm text-gray-600 font-mono overflow-x-auto max-h-[500px] overflow-y-auto leading-relaxed">
+            {AGENT_EXAMPLE}
+          </pre>
+        </CardContent>
+      </Card>
+
+      {/* ══════════════ OpenAI / Anthropic 兼容协议 ══════════════ */}
+      <SectionHeading
+        title="OpenAI / Anthropic 兼容"
+        desc="把 Agent 当作「模型」接入现有客户端，使用 Gateway Token"
+      />
+
       {/* Protocol access intro */}
       <Card>
         <CardHeader>
@@ -290,58 +487,6 @@ export default function ApiAccessPage() {
           >
             前往 API 网关创建令牌 →
           </Link>
-        </CardContent>
-      </Card>
-
-      {/* CLI Usage */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center justify-between">
-            <span>命令行调用</span>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => copyToClipboard(CLI_EXAMPLE, "cli")}
-            >
-              {copied === "cli" ? <><Check className="h-3.5 w-3.5 text-green-600" /> 已复制</> : <><Copy className="h-3.5 w-3.5" /> 复制</>}
-            </Button>
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <p className="text-sm text-gray-500">
-            项目根目录下的 <code className="text-primary">call_agent_api.py</code> 可直接使用：
-          </p>
-          <pre className="rounded-lg bg-gray-100 border border-gray-200 p-4 text-sm text-gray-600 font-mono overflow-x-auto leading-relaxed">
-            {CLI_EXAMPLE}
-          </pre>
-        </CardContent>
-      </Card>
-
-      {/* Python Example */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center justify-between">
-            <span>Python 调用示例</span>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => copyToClipboard(AGENT_EXAMPLE, "agent")}
-            >
-              {copied === "agent" ? <><Check className="h-3.5 w-3.5 text-green-600" /> 已复制</> : <><Copy className="h-3.5 w-3.5" /> 复制代码</>}
-            </Button>
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <p className="text-sm text-gray-500">
-            发送消息给 Agent 并等待回复，可集成到自己的 Python 项目中。
-          </p>
-          <div className="text-xs text-gray-500 font-mono">
-            端点: <code className="text-primary">POST /api/comworker/sessions/:key/messages</code>
-            &nbsp;|&nbsp; 认证: <code className="text-primary">Bearer {'<API_TOKEN>'}</code>
-          </div>
-          <pre className="rounded-lg bg-gray-100 border border-gray-200 p-4 text-sm text-gray-600 font-mono overflow-x-auto max-h-[500px] overflow-y-auto leading-relaxed">
-            {AGENT_EXAMPLE}
-          </pre>
         </CardContent>
       </Card>
 

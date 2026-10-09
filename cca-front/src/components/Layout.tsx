@@ -317,6 +317,17 @@ export default function Layout() {
     }
   }, [])
 
+  // 防抖合并：多个会话事件在窗口内只触发一次全量刷新，
+  // 避免每条消息都全量重拉整个会话列表（会话越多越慢）。
+  const sessionsRefreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const scheduleSessionsRefresh = useCallback(() => {
+    if (sessionsRefreshTimerRef.current) clearTimeout(sessionsRefreshTimerRef.current)
+    sessionsRefreshTimerRef.current = setTimeout(() => {
+      sessionsRefreshTimerRef.current = null
+      void refreshSessions({ silent: true, force: true })
+    }, 1200)
+  }, [refreshSessions])
+
   const addOptimisticSession = useCallback((session: Session) => {
     setOptimisticSessions(prev => {
       if (sessions.some(item => item.key === session.key)) {
@@ -413,9 +424,8 @@ export default function Layout() {
         const sessionKey = resolveKnownSessionKey(rawSessionKey)
         if (state === 'started' || state === 'delta') {
           setSessionThinking(sessionKey, true)
-          if (state === 'started') {
-            void refreshSessions({ silent: true, force: true })
-          }
+          // 不再在每次 started 时全量重拉会话列表（会随会话数线性变慢）；
+          // 思考态已由 setSessionThinking 单独驱动。
           return
         }
 
@@ -426,7 +436,9 @@ export default function Layout() {
               markSessionRead(sessionKey)
             } else {
               markSessionUnread(sessionKey)
-              void refreshSessions({ silent: true, force: true })
+              // 防抖合并：后台会话的最终事件只触发一次全量刷新，
+              // 避免每条消息都重拉整个会话列表。
+              scheduleSessionsRefresh()
             }
           }
         }
@@ -435,8 +447,11 @@ export default function Layout() {
       }
     }
 
-    return () => sse.close()
-  }, [markSessionRead, markSessionUnread, refreshSessions, resolveKnownSessionKey, setSessionThinking])
+    return () => {
+      sse.close()
+      if (sessionsRefreshTimerRef.current) clearTimeout(sessionsRefreshTimerRef.current)
+    }
+  }, [markSessionRead, markSessionUnread, refreshSessions, resolveKnownSessionKey, scheduleSessionsRefresh, setSessionThinking])
 
   const currentSessionTitle = useMemo(() => {
     if (!activeSessionKey) return null
