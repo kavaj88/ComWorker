@@ -43,6 +43,7 @@ cache/
 
 # ── Local agent / scratch docs (use `git add -f` to force-share) ─────
 /docs/
+/doc/
 .pkg_obsolete/
 
 # ── Deploy copy artifacts (kept out of source control) ──────────────
